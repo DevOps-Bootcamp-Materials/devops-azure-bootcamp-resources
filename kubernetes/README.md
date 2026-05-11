@@ -29,7 +29,7 @@ kubernetes/
 - Docker installed with a basic understanding of containers
 - `kubectl` installed ([official guide](https://kubernetes.io/docs/tasks/tools/))
 - A local cluster available: [minikube](https://minikube.sigs.k8s.io/docs/start/) or [kind](https://kind.sigs.k8s.io/)
-- For labs 06, 07, and 09: Azure CLI installed and an active Azure subscription
+- For the `aks` and `wordpress-mysql-aks` labs: Azure CLI installed and an active Azure subscription
 
 ### Starting the local environment
 

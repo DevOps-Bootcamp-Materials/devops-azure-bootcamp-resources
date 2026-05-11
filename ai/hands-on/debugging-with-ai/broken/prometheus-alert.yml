@@ -1,0 +1,49 @@
+# BROKEN FILE — used for hands-on 01: AI-assisted debugging
+# This Prometheus alerting rule file has multiple issues.
+# Some are syntax errors, some are logic errors, some are bad practices.
+
+groups:
+  - name: application_alerts
+    rules:
+      # Issue 1: querying a counter directly without rate() — will never alert meaningfully
+      - alert: HighRequestCount
+        expr: http_requests_total > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request count"
+
+      # Issue 2: using = instead of =~ for regex match; status_code is a string label
+      - alert: HighErrorRate
+        expr: |
+          rate(http_requests_total{status_code="5.*"}[5m])
+          /
+          rate(http_requests_total[5m])
+          > 0.05
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error rate above 5%"
+          # Issue 3: $value is a ratio (0.0–1.0) but the message says "percent"
+          description: "Error rate is {{ $value }}% on {{ $labels.instance }}"
+
+      # Issue 4: histogram_quantile applied directly to a counter, not rate()
+      - alert: SlowRequests
+        expr: histogram_quantile(0.95, http_request_duration_seconds_bucket) > 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 latency above 2 seconds"
+
+      # Issue 5: the for duration is 0 — this alert fires on any single evaluation
+      # that returns a result, causing alert storms on transient spikes
+      - alert: AnyErrorOccurred
+        expr: rate(http_requests_total{status_code=~"5.."}[1m]) > 0
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "An error occurred"

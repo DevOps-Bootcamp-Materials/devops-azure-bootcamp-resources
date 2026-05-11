@@ -1,0 +1,52 @@
+# =============================================================================
+# SERVICE (ClusterIP) — Stable virtual IP for intra-cluster communication
+# =============================================================================
+# Problem it solves:
+#   Pods are ephemeral. Every time a Pod is recreated its IP changes.
+#   If Service A hardcodes the IP of Service B's Pod, it breaks on restart.
+#
+# How ClusterIP works:
+#   1. Kubernetes assigns a virtual IP (the CLUSTER-IP) to the Service.
+#      This IP never changes as long as the Service exists.
+#   2. kube-proxy on every node programs iptables/ipvs rules to intercept
+#      traffic destined for CLUSTER-IP:port and forward it to one of the
+#      healthy Pod IPs listed in the Endpoints object.
+#   3. kube-dns creates a DNS record: <service>.<namespace>.svc.cluster.local
+#      so Pods can use names instead of IPs entirely.
+#
+# ClusterIP is ONLY reachable from within the cluster. It is not exposed
+# externally — that is the job of NodePort, LoadBalancer, or Ingress.
+# =============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-service
+  namespace: lab02
+  labels:
+    app: web
+    lab: "02"
+spec:
+  type: ClusterIP         # Default type. Omitting 'type' produces the same result.
+                          # Other types: NodePort, LoadBalancer, ExternalName.
+
+  # ---------------------------------------------------------------------------
+  # selector — the Service finds its target Pods using labels, NOT names.
+  # Kubernetes continuously reconciles the Endpoints object based on this selector:
+  #   - A Pod that matches AND passes its readinessProbe → added to Endpoints
+  #   - A Pod that fails readinessProbe or is Terminating → removed from Endpoints
+  # Traffic is load-balanced (round-robin by default) across all Endpoints.
+  # ---------------------------------------------------------------------------
+  selector:
+    app: web
+    version: v1
+
+  ports:
+    - name: http            # Named ports let other objects (like Ingress) reference
+                            # the port by name instead of number — more maintainable.
+      protocol: TCP
+      port: 80              # The port the Service listens on (CLUSTER-IP:80).
+                            # This is what other Pods use to reach this Service.
+      targetPort: 80        # The port on the container that actually handles the request.
+                            # Can differ from 'port' — e.g. app listens on 8080 but
+                            # the Service exposes port 80.

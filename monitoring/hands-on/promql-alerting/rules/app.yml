@@ -1,0 +1,34 @@
+# Alerting rules for application-level metrics (prometheus-example-app)
+# Metrics exposed by quay.io/brancz/prometheus-example-app:v0.3.0:
+#   http_requests_total{handler, code}
+#   http_request_duration_seconds_bucket{handler}
+groups:
+  - name: application
+    rules:
+      # Alert if the p95 latency of any handler exceeds 500ms
+      - alert: HighRequestLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (handler, le) (rate(http_request_duration_seconds_bucket{job="demo"}[5m]))
+          ) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p95 latency on handler {{ $labels.handler }}"
+          description: "The 95th percentile latency for {{ $labels.handler }} is {{ printf \"%.3f\" $value }}s, exceeding 500ms for more than 2 minutes."
+
+      # Alert if the error rate (non-2xx) exceeds 5%
+      - alert: HighErrorRate
+        expr: |
+          sum by (handler) (rate(http_requests_total{job="demo", code!~"2.."}[5m]))
+          /
+          sum by (handler) (rate(http_requests_total{job="demo"}[5m]))
+          > 0.05
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate on handler {{ $labels.handler }}"
+          description: "Error rate for {{ $labels.handler }} is {{ printf \"%.1f\" (mul $value 100) }}%, exceeding 5%."

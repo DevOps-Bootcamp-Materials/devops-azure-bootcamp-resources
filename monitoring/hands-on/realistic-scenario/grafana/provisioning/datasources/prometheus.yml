@@ -1,0 +1,16 @@
+# Grafana provisioning — datasource
+# This file is loaded automatically when Grafana starts.
+# No manual "Add data source" required.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus-main
+    url: http://prometheus:9090
+    access: proxy
+    isDefault: true
+    editable: false   # prevent accidental modification via the UI
+    jsonData:
+      timeInterval: "15s"   # matches global scrape_interval

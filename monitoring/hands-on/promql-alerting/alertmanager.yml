@@ -1,0 +1,21 @@
+# alertmanager.yml — routes alerts to receivers
+# In this hands-on we use a webhook receiver so you can observe alerts firing
+# without needing an email or Slack account.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  # Default receiver for all alerts
+  receiver: "webhook-logger"
+  group_by: ["alertname", "job"]
+  group_wait: 10s       # wait before sending the first notification
+  group_interval: 30s   # wait before sending a notification for new alerts in the same group
+  repeat_interval: 1m   # re-send if the alert is still firing after 1 minute
+
+receivers:
+  - name: "webhook-logger"
+    webhook_configs:
+      # This container simply logs incoming webhook payloads — useful for learning
+      - url: "http://webhook-logger:9000"
+        send_resolved: true

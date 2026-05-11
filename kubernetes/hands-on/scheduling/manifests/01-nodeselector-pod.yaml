@@ -1,0 +1,28 @@
+# =============================================================================
+# nodeSelector — the simplest hard node constraint
+# =============================================================================
+# The scheduler will only consider nodes that have ALL the key=value pairs
+# listed under spec.nodeSelector. If no node matches, the Pod stays Pending.
+#
+# This file targets the 'role=workload' label we added with:
+#   az aks nodepool add ... --labels role=workload tier=app
+#
+# Limitations of nodeSelector (and why nodeAffinity exists):
+#   - Only equality matching. No "in (A, B)", no "Exists", no "Gt/Lt".
+#   - No soft preferences. It is either matched or the Pod is unschedulable.
+# =============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: selector-pod
+  namespace: lab09
+  labels:
+    demo: nodeselector
+spec:
+  nodeSelector:
+    role: workload          # Must equal an existing node label.
+                            # If you typo it, Pod stays Pending forever.
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]

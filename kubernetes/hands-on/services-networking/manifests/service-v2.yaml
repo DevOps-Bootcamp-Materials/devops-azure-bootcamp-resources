@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-v2-service
+  namespace: lab02
+spec:
+  type: ClusterIP
+  selector:
+    app: web
+    version: v2
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80

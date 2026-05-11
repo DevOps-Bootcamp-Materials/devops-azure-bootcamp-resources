@@ -1,0 +1,41 @@
+# =============================================================================
+# PERSISTENTVOLUMECLAIM — Dynamic provisioning via StorageClass
+# =============================================================================
+# With dynamic provisioning, you do NOT create the PV manually.
+# The flow is:
+#   1. Developer creates a PVC referencing a StorageClass
+#   2. The StorageClass provisioner (e.g. AWS EBS CSI, GCP PD CSI) creates
+#      a real disk in the cloud and registers it as a PV
+#   3. Kubernetes binds the PVC to the new PV automatically
+#
+# This eliminates the admin bottleneck of manual PV creation and is the
+# standard approach in production cloud environments.
+#
+# In minikube, the 'standard' StorageClass uses the hostpath provisioner
+# (same as a manual hostPath PV, but created on demand). In real clusters:
+#   AWS  → gp2, gp3 (EBS), efs-sc (EFS for RWX)
+#   GCP  → standard, premium-rwo
+#   Azure → default (Azure Disk), azurefile (Azure Files for RWX)
+# =============================================================================
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dynamic-pvc
+  namespace: lab04
+  labels:
+    lab: "04"
+spec:
+  accessModes:
+    - ReadWriteOnce
+
+  # Named StorageClass → triggers dynamic provisioning.
+  # Run 'kubectl get storageclass' to see what's available in your cluster.
+  # The StorageClass marked with '(default)' is used when storageClassName is omitted.
+  storageClassName: standard
+
+  resources:
+    requests:
+      storage: 200Mi    # The provisioner creates a disk of at least this size.
+                        # Actual size may be rounded up to the provider's minimum
+                        # (e.g. AWS EBS minimum is 1Gi even if you request 200Mi).

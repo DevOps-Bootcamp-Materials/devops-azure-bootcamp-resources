@@ -1,0 +1,38 @@
+# values.yaml — kube-prometheus-stack Helm overrides for this hands-on
+# Only the settings relevant for classroom use are overridden.
+# All other values use the chart defaults.
+
+grafana:
+  adminPassword: "prom-operator"    # default in the official chart
+  service:
+    type: ClusterIP                  # access via kubectl port-forward
+
+prometheus:
+  prometheusSpec:
+    # Automatically pick up ServiceMonitor resources from any namespace.
+    # Default is to only watch the same namespace as the release.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    retention: 24h                   # keep 24 hours of data (sufficient for class)
+    resources:
+      requests:
+        cpu: 200m
+        memory: 400Mi
+      limits:
+        cpu: 500m
+        memory: 800Mi
+
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 50Mi
+
+# Disable components not needed for this hands-on
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false

@@ -1,0 +1,45 @@
+# A simple Go HTTP server that exposes Prometheus metrics at /metrics.
+# Source image: https://github.com/brancz/prometheus-example-app
+# Exposes: http_requests_total{handler,code}, http_request_duration_seconds{handler}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-app
+  namespace: demo-app
+  labels:
+    app: sample-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sample-app
+  template:
+    metadata:
+      labels:
+        app: sample-app
+      annotations:
+        # These annotations allow Prometheus to scrape this pod directly
+        # (useful as a fallback, but we will use ServiceMonitor below)
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: sample-app
+          image: quay.io/brancz/prometheus-example-app:v0.3.0
+          ports:
+            - containerPort: 8080
+              name: http-metrics
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10

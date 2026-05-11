@@ -1,0 +1,62 @@
+# =============================================================================
+# topologySpreadConstraints — even distribution, gracefully
+# =============================================================================
+# Anti-affinity is binary: "never together". Once you have more replicas than
+# nodes, anti-affinity stalls scheduling because the rule cannot be satisfied.
+#
+# topologySpreadConstraints is granular. It says:
+#   "the difference between the most-populous bucket and the least-populous
+#    bucket of pods matching the label selector must not exceed maxSkew".
+#
+# So with 6 replicas across 3 nodes and maxSkew=1, the scheduler will
+# distribute them as 2/2/2 (or 3/2/2 if the math forces it). No Pending Pods,
+# no hostspots.
+#
+# whenUnsatisfiable:
+#   DoNotSchedule  → hard. Pod stays Pending if it would violate maxSkew.
+#   ScheduleAnyway → soft. Best-effort spreading; if impossible, schedule anyway.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spread-app
+  namespace: lab09
+  labels:
+    app: spread-app
+spec:
+  replicas: 6
+  selector:
+    matchLabels:
+      app: spread-app
+  template:
+    metadata:
+      labels:
+        app: spread-app
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1                                  # Allowed imbalance per bucket
+          topologyKey: kubernetes.io/hostname          # One bucket per node
+          whenUnsatisfiable: ScheduleAnyway            # Soft: prefer spread but don't block
+          labelSelector:
+            matchLabels:
+              app: spread-app
+        # You can stack multiple constraints (e.g. spread across zones AND
+        # across nodes simultaneously). The scheduler tries to satisfy all.
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: spread-app
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"

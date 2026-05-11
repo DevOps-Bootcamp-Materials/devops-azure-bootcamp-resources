@@ -1,0 +1,59 @@
+# =============================================================================
+# CONFIGMAP — Externalised, non-sensitive configuration
+# =============================================================================
+# Core principle (12-factor app, Factor III — Config):
+#   "Store config in the environment." An app's config is everything that varies
+#   between deploys (staging, production, developer environments). This should
+#   never be baked into the container image.
+#
+# ConfigMap vs environment variables baked into the image:
+#   Image env vars:  tied to the image build, require a rebuild to change.
+#   ConfigMap:       changed by editing a Kubernetes object, no image rebuild needed.
+#
+# ConfigMap vs Secret:
+#   ConfigMap → plain text in etcd. Use for non-sensitive data:
+#               log levels, feature flags, endpoints, file contents.
+#   Secret    → base64-encoded in etcd (+ optional encryption at rest).
+#               Use for passwords, tokens, certificates, API keys.
+#
+# Two injection methods:
+#   1. Environment variable  — loaded at container start. NOT updated live.
+#   2. Volume mount          — appears as files. Updated live (≈60s kubelet sync).
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config-manifest
+  namespace: lab03
+  labels:
+    lab: "03"
+
+# 'data' holds string key-value pairs in plain text.
+# Keys become either env var names (when using envFrom/valueFrom)
+# or filenames (when mounting as a volume).
+data:
+  # ---------------------------------------------------------------------------
+  # Scalar values — simple string configuration parameters.
+  # When loaded via 'envFrom', each key becomes an environment variable name.
+  # ---------------------------------------------------------------------------
+  APP_ENV: "production"
+  LOG_LEVEL: "info"
+  MAX_CONNECTIONS: "100"    # Note: all values are strings, even numbers.
+                            # Your app must parse "100" to int if needed.
+
+  # ---------------------------------------------------------------------------
+  # Multi-line values — the '|' character preserves newlines (block scalar).
+  # When mounted as a volume, the key name becomes the filename and the value
+  # becomes the file content. This allows injecting entire config files.
+  # ---------------------------------------------------------------------------
+  log-level: |
+    info
+
+  # This will be mounted as a file named 'app.properties' at the mount path.
+  # The application reads this file at startup (or live-reloads if supported).
+  app.properties: |
+    database.host=postgres-service
+    database.port=5432
+    feature.dark-mode=true
+    feature.new-ui=false

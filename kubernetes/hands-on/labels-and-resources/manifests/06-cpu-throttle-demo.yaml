@@ -1,0 +1,31 @@
+# =============================================================================
+# CPU throttling demo — exceed the CPU LIMIT and watch it get capped, NOT killed
+# =============================================================================
+# Unlike memory, CPU limits in Kubernetes are enforced via cgroup CPU CFS quotas.
+# The container does NOT die when it tries to use more than its limit; the
+# kernel simply schedules it off the CPU until the next quota slice.
+#
+# The workload below busy-loops on the CPU as hard as it can. With a 100m
+# (= 0.1 core) limit, the cgroup gets only 10 ms of CPU time every 100 ms
+# scheduling period. 'kubectl top pod' will plateau at ~100m no matter what.
+#
+# Requires metrics-server. On minikube:
+#   minikube addons enable metrics-server
+# =============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cpu-stress
+  namespace: lab08
+spec:
+  containers:
+    - name: c
+      image: busybox:1.36
+      # 'while :; do :; done' is the tightest busy-loop in shell. It tries to
+      # use 100% of one core. With a 100m limit it gets throttled to ~10%.
+      command: ["sh", "-c", "while :; do :; done"]
+      resources:
+        requests:
+          cpu: "50m"
+        limits:
+          cpu: "100m"          # Soft ceiling. Exceeding it = throttled, not killed.

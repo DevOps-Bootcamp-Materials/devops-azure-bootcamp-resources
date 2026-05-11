@@ -1,0 +1,37 @@
+# =============================================================================
+# OOMKilled demo — exceed the memory LIMIT and watch the kernel kill it
+# =============================================================================
+# The container allocates a 300 MiB tmpfs region via 'dd' to /dev/shm, but its
+# cgroup memory limit is 128 MiB. The Linux kernel's OOM killer sends SIGKILL
+# to the offending process; the container exits with code 137 (= 128 + 9).
+#
+# Why /dev/shm and not /tmp? /dev/shm is tmpfs (memory-backed) inside the
+# container, so the writes count immediately against the cgroup memory accounting.
+# A write to a disk-backed path would not trigger OOM (it would just fill disk).
+#
+# Restart policy is OnFailure so we get the OOMKilled → CrashLoopBackOff cycle
+# visible in 'kubectl get pod -w', which is exactly what users see in the wild.
+# =============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: oom-victim
+  namespace: lab08
+spec:
+  restartPolicy: OnFailure
+  containers:
+    - name: c
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          echo "Allocating 300 MiB into /dev/shm — limit is 128 MiB..."
+          dd if=/dev/zero of=/dev/shm/big bs=1M count=300
+          echo "Survived. (This line should never print.)"
+          sleep 3600
+      resources:
+        requests:
+          memory: "64Mi"
+        limits:
+          memory: "128Mi"        # Hard ceiling. Exceeding it = OOMKilled.

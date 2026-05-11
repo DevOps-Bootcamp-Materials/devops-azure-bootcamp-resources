@@ -1,0 +1,23 @@
+# =============================================================================
+# Pod WITHOUT toleration — cannot schedule on the tainted workload node
+# =============================================================================
+# We expect this Pod to land on a SYSTEM node (untainted) and be REJECTED
+# from the workload node by the taint.
+#
+# Preconditions before applying:
+#   kubectl taint node <workload-node> dedicated=ml:NoSchedule
+#
+# Verify:
+#   kubectl get pod intolerant -o wide       # NODE is one of the system nodes
+#   kubectl describe pod intolerant          # Events show the rejection from the workload node
+# =============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: intolerant
+  namespace: lab09
+spec:
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]

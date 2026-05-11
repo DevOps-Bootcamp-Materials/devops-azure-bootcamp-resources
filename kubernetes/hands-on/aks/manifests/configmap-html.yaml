@@ -1,0 +1,155 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-html
+  namespace: lab05
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>IronHack DevOps — AKS Lab</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          background: #0f1117;
+          color: #e8eaf0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          padding: 2rem;
+        }
+        .card {
+          background: #1a1d27;
+          border: 1px solid #2d3148;
+          border-radius: 12px;
+          padding: 3rem;
+          max-width: 640px;
+          width: 100%;
+          text-align: center;
+          box-shadow: 0 4px 32px rgba(0,0,0,0.4);
+        }
+        .badge {
+          display: inline-block;
+          background: #1565c0;
+          color: #90caf9;
+          font-size: 0.75rem;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          padding: 0.25rem 0.75rem;
+          border-radius: 999px;
+          margin-bottom: 1.5rem;
+        }
+        h1 {
+          font-size: 2rem;
+          font-weight: 700;
+          margin-bottom: 0.5rem;
+          background: linear-gradient(135deg, #42a5f5, #ab47bc);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+          color: #8892a4;
+          margin-bottom: 2rem;
+          font-size: 1rem;
+        }
+        .grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem;
+          margin-bottom: 2rem;
+          text-align: left;
+        }
+        .stat {
+          background: #12151e;
+          border: 1px solid #2d3148;
+          border-radius: 8px;
+          padding: 1rem;
+        }
+        .stat-label {
+          font-size: 0.7rem;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: #5c6680;
+          margin-bottom: 0.25rem;
+        }
+        .stat-value {
+          font-size: 0.95rem;
+          font-weight: 600;
+          color: #90caf9;
+          word-break: break-all;
+        }
+        .footer {
+          font-size: 0.8rem;
+          color: #3d4560;
+        }
+        .dot { display: inline-block; width: 8px; height: 8px;
+               border-radius: 50%; background: #4caf50; margin-right: 6px; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="badge">Azure Kubernetes Service</div>
+        <h1>IronHack DevOps</h1>
+        <p class="subtitle">Your application is running inside an AKS cluster<br>and reachable from the internet via an Azure Load Balancer.</p>
+
+        <div class="grid">
+          <div class="stat">
+            <div class="stat-label">Pod hostname</div>
+            <div class="stat-value" id="hostname">fetching…</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Status</div>
+            <div class="stat-value"><span class="dot"></span>Running</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Namespace</div>
+            <div class="stat-value">lab05</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Lab</div>
+            <div class="stat-value">05 — AKS</div>
+          </div>
+        </div>
+
+        <p class="footer">Served by nginx · Deployment: ironhack-web · Service type: LoadBalancer</p>
+      </div>
+
+      <script>
+        // The pod hostname comes from the server — nginx sets it in the response.
+        // We read it by making a HEAD request and checking the X-Pod-Name header,
+        // or fall back to a simple lookup via the nginx $hostname variable injected
+        // into the page at render time by the nginx config below.
+        fetch('/hostname')
+          .then(r => r.text())
+          .then(t => { document.getElementById('hostname').textContent = t.trim(); })
+          .catch(() => { document.getElementById('hostname').textContent = window.location.hostname; });
+      </script>
+    </body>
+    </html>
+
+  # nginx config that serves the custom page and exposes /hostname
+  default.conf: |
+    server {
+        listen 80;
+        server_name _;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        # Lightweight endpoint that returns the Pod hostname.
+        # The JavaScript in index.html fetches this to show which Pod is responding.
+        location /hostname {
+            default_type text/plain;
+            return 200 "$hostname\n";
+        }
+    }

@@ -1,0 +1,116 @@
+# =============================================================================
+# DEPLOYMENT — Lifecycle manager for stateless workloads
+# =============================================================================
+# A Deployment does not run Pods directly. It creates and manages ReplicaSets.
+# The object hierarchy is:
+#
+#   Deployment  →  creates/owns  →  ReplicaSet  →  creates/owns  →  Pods
+#
+# When you update the Pod template (e.g. change the image), the Deployment:
+#   1. Creates a NEW ReplicaSet with the updated template
+#   2. Scales the new RS up and the old RS down, pod by pod (rolling update)
+#   3. Keeps the old RS around (scaled to 0) for rollback purposes
+#
+# This is why Deployments are the standard way to run stateless apps in K8s.
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  namespace: lab01
+  labels:
+    app: nginx
+    lab: "01"
+  # Annotations are non-identifying metadata. Tools, CI systems, and operators
+  # use them. They do not affect scheduling or selection.
+  annotations:
+    deployment.kubernetes.io/revision: "1"   # Auto-managed by Kubernetes; shown here for clarity
+
+spec:
+  replicas: 3           # Run 3 Pod instances at all times.
+
+  # ---------------------------------------------------------------------------
+  # selector — IMMUTABLE after creation.
+  # Changing it requires deleting and recreating the Deployment because the
+  # existing ReplicaSets would become orphaned.
+  # ---------------------------------------------------------------------------
+  selector:
+    matchLabels:
+      app: nginx
+
+  # ---------------------------------------------------------------------------
+  # strategy — controls HOW updates are applied.
+  #
+  # RollingUpdate (default): brings up new Pods before taking down old ones.
+  #   - Zero downtime if at least one Pod is always ready.
+  #   - Requires the new and old versions to be compatible simultaneously
+  #     (important for DB schema migrations, API contracts, etc.).
+  #
+  # Recreate: terminates ALL old Pods first, then starts new ones.
+  #   - Causes downtime but ensures only one version runs at a time.
+  #   - Useful when two versions cannot coexist (e.g. incompatible DB schema).
+  # ---------------------------------------------------------------------------
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1   # At most 1 Pod can be unavailable during the update.
+                          # With replicas=3, at least 2 Pods are always serving traffic.
+                          # Can be a number or a percentage ("33%").
+      maxSurge: 1         # At most 1 extra Pod can exist above 'replicas' during the update.
+                          # With replicas=3 and maxSurge=1, up to 4 Pods run simultaneously.
+                          # Trades extra resource usage for faster rollout speed.
+
+  template:
+    metadata:
+      labels:
+        app: nginx        # Must match spec.selector.matchLabels.
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.25
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+
+          # -----------------------------------------------------------------
+          # readinessProbe — answers: "Is this container ready to receive traffic?"
+          #
+          # Kubernetes only adds a Pod to Service Endpoints (i.e. sends it traffic)
+          # when ALL its containers pass their readiness probe.
+          # During a rolling update, the old ReplicaSet is only scaled down AFTER
+          # the new Pod's readiness probe succeeds — this is what ensures zero downtime.
+          # -----------------------------------------------------------------
+          readinessProbe:
+            httpGet:
+              path: /       # Kubernetes sends an HTTP GET to this path.
+              port: 80      # If the response is 2xx or 3xx, the probe passes.
+            initialDelaySeconds: 5    # Wait 5s after container start before first probe.
+                                      # Avoids false failures during app startup.
+            periodSeconds: 10         # Probe every 10 seconds.
+            failureThreshold: 3       # Mark as not ready after 3 consecutive failures.
+
+          # -----------------------------------------------------------------
+          # livenessProbe — answers: "Is this container still alive?"
+          #
+          # If the probe fails, Kubernetes RESTARTS the container (not the Pod).
+          # Use it to detect deadlocks or hung processes that are running but
+          # no longer doing useful work.
+          #
+          # Warning: a liveness probe that is too aggressive (short timeout,
+          # low threshold) will cause unnecessary restarts under load.
+          # -----------------------------------------------------------------
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 15   # Give the app more time to fully initialize
+                                      # before liveness checks begin.
+            periodSeconds: 20
+            failureThreshold: 3

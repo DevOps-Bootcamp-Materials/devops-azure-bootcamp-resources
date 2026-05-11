@@ -1,0 +1,51 @@
+# =============================================================================
+# POD — Minimum scheduling unit in Kubernetes
+# =============================================================================
+# A Pod wraps one or more containers that:
+#   - Share the same network namespace (same IP, same localhost)
+#   - Share the same storage volumes if declared
+#   - Are always co-scheduled on the same node
+#
+# Pods are EPHEMERAL. Kubernetes never restarts a Pod on its own — that is the
+# job of higher-level controllers (ReplicaSet, Deployment, StatefulSet…).
+# If this Pod crashes or is deleted, it is gone forever unless something
+# recreates it.
+# =============================================================================
+
+apiVersion: v1          # Core API group. Pods, Services, ConfigMaps, etc. live here.
+kind: Pod
+metadata:
+  name: nginx-pod       # Unique name within the namespace. Two Pods cannot share a name.
+  namespace: lab01      # Logical isolation boundary. All RBAC and quota policies apply per namespace.
+  labels:
+    app: nginx          # Labels are arbitrary key-value pairs used for selection and grouping.
+    lab: "01"           # Services and ReplicaSets find their Pods using label selectors — not names.
+spec:
+  # -------------------------------------------------------------------------
+  # containers[] — one or more containers that form this Pod.
+  # In production, sidecars (log shippers, proxies) are additional entries here.
+  # -------------------------------------------------------------------------
+  containers:
+    - name: nginx               # Name used in logs and 'kubectl exec -c <name>'
+      image: nginx:1.25         # Image reference. Always pin a version tag in production.
+                                # Using 'latest' disables caching and makes builds non-deterministic.
+      ports:
+        - containerPort: 80     # Informational only — does NOT open a firewall port.
+                                # Traffic still reaches the container regardless of this field.
+                                # Useful for documentation and tools that read port metadata.
+
+      # -----------------------------------------------------------------------
+      # resources — one of the most important fields for cluster stability.
+      # Without limits, a runaway container can starve other Pods on the node.
+      # -----------------------------------------------------------------------
+      resources:
+        requests:               # Minimum guaranteed resources. Used by the SCHEDULER to decide
+                                # which node has enough headroom. The Pod won't start if no node
+                                # can satisfy the request.
+          cpu: "100m"           # 100 millicores = 0.1 of one CPU core.
+          memory: "64Mi"        # 64 mebibytes of RAM.
+        limits:                 # Hard ceiling. If the container exceeds the memory limit,
+                                # the kernel OOM-kills it. If it exceeds the CPU limit,
+                                # it is throttled (not killed).
+          cpu: "200m"
+          memory: "128Mi"

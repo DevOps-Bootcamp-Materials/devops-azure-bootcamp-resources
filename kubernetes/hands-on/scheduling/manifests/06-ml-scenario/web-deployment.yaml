@@ -1,0 +1,40 @@
+# =============================================================================
+# Web workload — must NOT land on the ML pool
+# =============================================================================
+# This represents the "normal" workloads in the cluster. We declare NO
+# toleration for the workload-type=ml taint, so the scheduler will reject
+# this Pod from the workload node and place it on the system nodes.
+#
+# Expected outcome: all 3 replicas distributed across the system nodes only.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-workload
+  namespace: lab09
+  labels:
+    app: web-workload
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web-workload
+  template:
+    metadata:
+      labels:
+        app: web-workload
+    spec:
+      # NO tolerations → cannot tolerate the workload-type=ml:NoSchedule taint.
+      # NO nodeSelector → scheduler is free to pick any non-tainted node.
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"

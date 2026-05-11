@@ -1,0 +1,74 @@
+# =============================================================================
+# emptyDir + SIDECAR PATTERN — inter-container communication via a shared dir
+# =============================================================================
+# Two containers in the same Pod cooperate by reading and writing to a shared
+# emptyDir volume.
+#
+#   nginx        → writes its access.log under /var/log/nginx/
+#   log-shipper  → tails that same file and prints to stdout
+#
+# In production the shipper is Fluent Bit / Vector / Promtail and stdout is
+# scraped by the cluster log collector. Here we use busybox to keep the demo
+# self-contained.
+#
+# WHY emptyDir AND NOT A NAMED VOLUME?
+#   - The two containers are part of the same Pod (same lifecycle, same node)
+#   - The data is meaningful only while both are alive
+#   - We do not want this surviving Pod restarts (logs are already shipped)
+# =============================================================================
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-with-logger
+  namespace: lab04
+  labels:
+    lab: "04"
+    pattern: sidecar
+spec:
+  # ---------------------------------------------------------------------------
+  # Pod-level volume declaration. Anything declared here can be mounted by any
+  # container in the Pod. The name 'logs' is internal to this Pod only.
+  # ---------------------------------------------------------------------------
+  volumes:
+    - name: logs
+      emptyDir: {}    # An empty {} is enough — defaults to a disk-backed dir on
+                      # the node, sized by the node's ephemeral-storage capacity.
+
+  containers:
+    # -------------------------------------------------------------------------
+    # Main container: serves HTTP and writes its access log to the shared dir.
+    # -------------------------------------------------------------------------
+    - name: nginx
+      image: nginx:1.27-alpine
+      ports:
+        - containerPort: 80
+      volumeMounts:
+        - name: logs                  # Matches spec.volumes[].name above.
+          mountPath: /var/log/nginx   # Path INSIDE this container.
+                                      # nginx writes access.log and error.log here.
+
+    # -------------------------------------------------------------------------
+    # Sidecar: tails the shared file and prints to stdout. In a real cluster a
+    # log collector (Fluent Bit, Loki Promtail) picks this up automatically.
+    # -------------------------------------------------------------------------
+    - name: log-shipper
+      image: busybox:1.36
+      # 'tail -F' follows the file even if it gets rotated/recreated.
+      # The '|| sleep 60 && exec ...' loop is defensive: if access.log does not
+      # exist yet (race with nginx startup), we retry instead of crashlooping.
+      command:
+        - sh
+        - -c
+        - |
+          while [ ! -f /logs/access.log ]; do
+            echo "waiting for nginx to create access.log..."
+            sleep 2
+          done
+          exec tail -F /logs/access.log
+      volumeMounts:
+        - name: logs                  # SAME volume as nginx — same bytes on disk.
+          mountPath: /logs            # But mounted at a DIFFERENT path here.
+                                      # The path is an implementation detail of
+                                      # each container.
+          readOnly: true              # Sidecar only reads. Defense-in-depth.

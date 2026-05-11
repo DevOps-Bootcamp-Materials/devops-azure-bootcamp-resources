@@ -1,0 +1,20 @@
+# ServiceMonitor: tells Prometheus (via the Prometheus Operator) to scrape this Service.
+# The Operator watches for ServiceMonitor resources and updates Prometheus configuration
+# automatically — no manual prometheus.yml editing required.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sample-app
+  namespace: demo-app
+  labels:
+    # This label must match the serviceMonitorSelector of the Prometheus resource.
+    # With our values.yaml settings, all ServiceMonitors are picked up automatically.
+    app: sample-app
+spec:
+  selector:
+    matchLabels:
+      app: sample-app
+  endpoints:
+    - port: http-metrics
+      interval: 15s
+      path: /metrics

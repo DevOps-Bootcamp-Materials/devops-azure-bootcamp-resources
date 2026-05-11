@@ -1,0 +1,109 @@
+# =============================================================================
+# Six Pods with deliberately diverse labels for selector practice
+# =============================================================================
+# The point of this file is NOT the Pods themselves — they all run the same
+# tiny image and do nothing. The point is the variety of labels so the student
+# can practice every selector form (equality, set-based, existence, negation).
+#
+# Label combinations:
+#   frontend-prod  : app=frontend, tier=web, env=prod, version=v1.2
+#   frontend-dev   : app=frontend, tier=web, env=dev,  version=v1.3, canary=true
+#   backend-prod   : app=backend,  tier=api, env=prod, version=v2.0
+#   backend-dev    : app=backend,  tier=api, env=dev,  version=v2.1
+#   cache-prod     : app=cache,    tier=cache, env=prod
+#   db-prod        : app=db,       tier=db,  env=prod
+# =============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: frontend-prod
+  namespace: lab08
+  labels:
+    app: frontend
+    tier: web
+    env: prod
+    version: v1.2
+spec:
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: frontend-dev
+  namespace: lab08
+  labels:
+    app: frontend
+    tier: web
+    env: dev
+    version: v1.3
+    canary: "true"            # quoted → string, not boolean. K8s labels are strings.
+spec:
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: backend-prod
+  namespace: lab08
+  labels:
+    app: backend
+    tier: api
+    env: prod
+    version: v2.0
+spec:
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: backend-dev
+  namespace: lab08
+  labels:
+    app: backend
+    tier: api
+    env: dev
+    version: v2.1
+spec:
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cache-prod
+  namespace: lab08
+  labels:
+    app: cache
+    tier: cache
+    env: prod
+spec:
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: db-prod
+  namespace: lab08
+  labels:
+    app: db
+    tier: db
+    env: prod
+spec:
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]

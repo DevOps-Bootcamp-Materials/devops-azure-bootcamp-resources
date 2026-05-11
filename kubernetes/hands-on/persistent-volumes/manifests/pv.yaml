@@ -1,0 +1,91 @@
+# =============================================================================
+# PERSISTENTVOLUME (PV) — Cluster-wide storage resource
+# =============================================================================
+# Storage in Kubernetes is modelled with three objects:
+#
+#   PersistentVolume (PV)       → the actual storage resource
+#   PersistentVolumeClaim (PVC) → a request for storage (created by the developer)
+#   StorageClass                → a provisioner template for dynamic PV creation
+#
+# The PV is created by the cluster administrator (or automatically by a
+# StorageClass provisioner). It describes WHERE the storage lives and
+# WHAT properties it has. The developer never needs to know the physical details.
+#
+# Binding lifecycle:
+#   PV status: Available → Bound (when a matching PVC claims it) → Released (PVC deleted)
+#   → Reclaimed (based on reclaimPolicy: Retain keeps data, Delete removes it)
+#
+# This manifest uses 'hostPath', which mounts a directory from the node's
+# filesystem into the Pod. ONLY suitable for single-node clusters (minikube).
+# In production, use cloud-backed volumes (EBS, GCE PD, Azure Disk) or
+# distributed storage (Ceph, NFS, Longhorn).
+# =============================================================================
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-pv
+  # PVs are cluster-scoped — they have NO namespace.
+  # This is intentional: storage is a shared cluster resource managed by admins,
+  # not a namespace-level concern owned by a single team.
+  labels:
+    type: local
+    lab: "04"
+spec:
+  # ---------------------------------------------------------------------------
+  # capacity — the total size of this volume.
+  # A PVC can request LESS than this and still bind to the PV
+  # (Kubernetes finds the best fit, not an exact match).
+  # A PVC requesting MORE will NOT bind to this PV.
+  # ---------------------------------------------------------------------------
+  capacity:
+    storage: 1Gi
+
+  volumeMode: Filesystem    # 'Filesystem' (default): the volume is formatted and mounted
+                            # as a directory. 'Block': raw block device, used for databases
+                            # that manage their own I/O (e.g. Ceph, Cassandra).
+
+  # ---------------------------------------------------------------------------
+  # accessModes — what mount modes this volume SUPPORTS (not what is currently active).
+  # Only one mode can be active at a time on a given PV.
+  #
+  #   ReadWriteOnce (RWO): one node can mount read/write. Most block storage.
+  #   ReadOnlyMany  (ROX): many nodes can mount read-only. NFS, object stores.
+  #   ReadWriteMany (RWX): many nodes can mount read/write. NFS, CephFS, EFS.
+  #
+  # Choosing the wrong mode for your storage backend causes the PVC to stay Pending.
+  # ---------------------------------------------------------------------------
+  accessModes:
+    - ReadWriteOnce
+
+  # ---------------------------------------------------------------------------
+  # persistentVolumeReclaimPolicy — what happens when the PVC is deleted.
+  #
+  #   Retain:  the PV moves to 'Released'. Data is preserved. An admin must
+  #            manually reclaim it (delete the PV and re-create it) before it
+  #            can be claimed again. Safest for production data.
+  #
+  #   Delete:  Kubernetes deletes the PV AND the underlying storage (e.g.
+  #            the EBS volume). Only available with cloud provisioners.
+  #            Default for dynamically provisioned volumes.
+  #
+  #   Recycle: DEPRECATED. Ran 'rm -rf' on the volume. Replaced by dynamic provisioning.
+  # ---------------------------------------------------------------------------
+  persistentVolumeReclaimPolicy: Retain
+
+  # Empty string → this PV can only be claimed by PVCs that also specify
+  # storageClassName: "" (static provisioning).
+  # A named StorageClass enables dynamic provisioning (see pvc-dynamic.yaml).
+  storageClassName: ""
+
+  # ---------------------------------------------------------------------------
+  # hostPath — mounts a path on the node into the Pod.
+  # Simple and zero-dependency, but tied to a specific node. If the Pod is
+  # rescheduled to a different node, it will see an empty directory.
+  # Use ONLY in single-node local environments.
+  # ---------------------------------------------------------------------------
+  hostPath:
+    path: /mnt/data
+    type: DirectoryOrCreate   # Creates /mnt/data on the node if it doesn't exist.
+                              # Other types: Directory (must exist), File, FileOrCreate,
+                              # Socket, CharDevice, BlockDevice.

@@ -1,0 +1,55 @@
+# =============================================================================
+# podAntiAffinity — spread Deployment replicas across nodes
+# =============================================================================
+# The classic high-availability pattern: tell the scheduler "do not place two
+# replicas of my Deployment on the same node". A node failure then takes out
+# at most ONE replica, not all of them.
+#
+# requiredDuringSchedulingIgnoredDuringExecution + topologyKey: hostname
+# means "in the SAME node bucket, never another Pod that matches this label".
+# Use topology.kubernetes.io/zone instead for "spread across availability zones".
+#
+# Scaling implication: if you set replicas > number of matching nodes, the
+# excess replicas stay Pending until you add more nodes or remove the
+# constraint. This is by design.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-spread
+  namespace: lab09
+  labels:
+    app: web-spread
+spec:
+  replicas: 3                # = number of nodes we have, so each node gets one Pod
+  selector:
+    matchLabels:
+      app: web-spread
+  template:
+    metadata:
+      labels:
+        app: web-spread
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values: ["web-spread"]
+              topologyKey: kubernetes.io/hostname    # "same node" bucket.
+                                                      # Replace with zone for
+                                                      # cross-AZ spread.
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"

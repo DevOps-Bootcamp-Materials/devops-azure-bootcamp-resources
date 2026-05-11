@@ -1,0 +1,85 @@
+# =============================================================================
+# MySQL StatefulSet — re-created using the restored PVC
+# =============================================================================
+# This manifest is applied AFTER:
+#   1. The original 'mysql' StatefulSet was deleted with --cascade=orphan
+#   2. The original PVC 'mysql-data-mysql-0' was deleted
+#   3. A new PVC populated from the snapshot ('mysql-data-restored') exists
+#
+# We can NOT use a volumeClaimTemplate here, because that always creates a
+# fresh PVC. Instead we declare the volume directly with a
+# persistentVolumeClaim reference to 'mysql-data-restored'.
+#
+# Trade-off: we lose the StatefulSet's automatic PVC management. If we ever
+# scaled this up (which we won't, MySQL stays at 1 replica), only the first
+# Pod would have a PVC. For a true restore-in-place in production you would:
+#   - Restore into a PVC named exactly 'mysql-data-mysql-0' (using a renaming
+#     migration via Velero, kopia, or a manual PV reclaim dance)
+#   - Re-apply the original StatefulSet manifest as-is
+# We skip that complexity here for clarity.
+# =============================================================================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: wordpress
+  labels:
+    app: mysql
+    lab: "07"
+    restored: "true"
+spec:
+  serviceName: mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          args:
+            - --default-authentication-plugin=mysql_native_password
+          ports:
+            - name: mysql
+              containerPort: 3306
+          envFrom:
+            - secretRef:
+                name: mysql-credentials
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          livenessProbe:
+            exec:
+              command: ["mysqladmin", "ping", "-h", "127.0.0.1"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "mysql -uroot -p\"$MYSQL_ROOT_PASSWORD\" -e 'SELECT 1'"
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            timeoutSeconds: 3
+          volumeMounts:
+            - name: mysql-data
+              mountPath: /var/lib/mysql
+
+      # Direct PVC reference INSTEAD of a volumeClaimTemplate.
+      # This is the trick that lets us point a StatefulSet at an already-existing
+      # PVC populated from a snapshot.
+      volumes:
+        - name: mysql-data
+          persistentVolumeClaim:
+            claimName: mysql-data-restored

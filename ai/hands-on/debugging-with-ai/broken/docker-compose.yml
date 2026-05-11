@@ -1,0 +1,48 @@
+# BROKEN FILE — used for hands-on 01: AI-assisted debugging
+# This file contains intentional errors. Do not fix them before the hands-on.
+# Your task is to find the errors using an AI assistant.
+
+version: "3"
+
+services:
+  web:
+    build: .
+    ports:
+      - "8080:80"
+    environment:
+      - DATABASE_URL=postgresql://postgres:secret@db:5432/myapp
+    depends_on:
+      - db
+    networks:
+      - backend
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: myapp
+      POSTGRES_USER: postgres
+      POSTGRES_PASWORD: secret     # typo in env var name
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+      - "8080:8080"               # port conflict with web service
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - web
+    networks:
+      - frontend
+
+volumes:
+  db-data:
+
+networks:
+  frontend:
+  backend:
+  # web and nginx are on different networks — nginx cannot reach web

@@ -1,0 +1,27 @@
+# =============================================================================
+# nodeSelector targeting a label NO node has — Pod stays Pending
+# =============================================================================
+# This demonstrates the failure mode of nodeSelector: no fallback, no
+# preference, just FailedScheduling events forever.
+#
+# Inspect with:
+#   kubectl get pod selector-impossible        # STATUS: Pending
+#   kubectl describe pod selector-impossible   # Events: "didn't match Pod's node affinity/selector"
+# =============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: selector-impossible
+  namespace: lab09
+  labels:
+    demo: nodeselector
+spec:
+  nodeSelector:
+    role: gpu-h100           # No node carries this label → Pending forever.
+                             # This is the most common scheduling-failure
+                             # symptom in real clusters: a label typo or a
+                             # missing node pool.
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]

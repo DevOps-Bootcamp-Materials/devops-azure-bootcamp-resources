@@ -1,0 +1,55 @@
+# =============================================================================
+# VolumeSnapshot — point-in-time copy of the MySQL data PVC
+# =============================================================================
+# A VolumeSnapshot tells the CSI driver to ask the underlying storage system
+# (Azure Disk in this case) for a snapshot of the volume backing a PVC. The
+# snapshot is a real Azure resource (Microsoft.Compute/snapshots) and behaves
+# like a frozen, immutable copy of the disk at a moment in time.
+#
+# A snapshot is consumed via the 'dataSource' field of a new PVC: see
+# 07-volumesnapshot-restore.yaml. You cannot mount a snapshot directly into
+# a Pod — you always restore it into a new PVC first.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# VolumeSnapshotClass — analogous to StorageClass, but for snapshots.
+# Tells the CSI driver: "when someone asks for a snapshot, use these parameters
+# and these credentials". Most AKS clusters ship with a default snapshot class
+# named 'csi-azuredisk-vsc' — we define one explicitly so the lab works on
+# clusters where it has been removed.
+# -----------------------------------------------------------------------------
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: csi-azuredisk-vsc
+  labels:
+    lab: "07"
+driver: disk.csi.azure.com         # Must match the provisioner of the StorageClass
+                                    # backing the source PVC (managed-csi).
+deletionPolicy: Delete             # 'Delete'  → deleting the VolumeSnapshot
+                                    #             removes the Azure snapshot too.
+                                    # 'Retain' → keep the Azure snapshot
+                                    #             (manual cleanup required).
+parameters:
+  incremental: "true"              # Azure-specific: store only the delta from
+                                    # the previous snapshot. Much cheaper.
+
+---
+# -----------------------------------------------------------------------------
+# VolumeSnapshot — the actual snapshot resource
+# -----------------------------------------------------------------------------
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: mysql-snapshot
+  namespace: wordpress
+  labels:
+    app: mysql
+    lab: "07"
+spec:
+  volumeSnapshotClassName: csi-azuredisk-vsc
+  source:
+    persistentVolumeClaimName: mysql-data-mysql-0   # The PVC to snapshot.
+                                                     # This is the auto-generated
+                                                     # name from the StatefulSet's
+                                                     # volumeClaimTemplate.

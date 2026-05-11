@@ -1,0 +1,14 @@
+# prometheus.yml — minimal configuration for hands-on 00
+# Prometheus scrapes only itself. Its own /metrics endpoint exposes all four
+# metric types (counter, gauge, histogram, summary) — no extra services needed.
+
+global:
+  scrape_interval: 15s      # how often Prometheus pulls metrics from each target
+  evaluation_interval: 15s  # how often it evaluates alerting rules (unused in this hands-on)
+
+scrape_configs:
+  # Prometheus exposes its own metrics at /metrics — perfect for a first look.
+  # The self-scrape generates real HTTP counters, histograms, and Go runtime gauges.
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

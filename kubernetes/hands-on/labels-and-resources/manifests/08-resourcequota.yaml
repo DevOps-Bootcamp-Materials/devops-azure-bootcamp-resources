@@ -1,0 +1,33 @@
+# =============================================================================
+# ResourceQuota — total cap on requests/limits across the whole namespace
+# =============================================================================
+# Unlike LimitRange (which enforces per-container bounds), ResourceQuota
+# enforces a SUM across the namespace. The admission controller tracks the
+# running total of requests.cpu, requests.memory, limits.*, and the number of
+# objects of each kind. Any Pod that would push a value over the quota is
+# rejected at creation time.
+#
+# Beware: ResourceQuota requires every Pod in the namespace to declare the
+# constrained resource. If you set requests.cpu in the quota, every new Pod
+# must specify requests.cpu — or it gets rejected with "must specify cpu".
+# The LimitRange from 07-limitrange.yaml satisfies this by injecting defaults.
+# =============================================================================
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: namespace-budget
+  namespace: lab08
+spec:
+  hard:
+    # ----- Compute budget --------------------------------------------------
+    requests.cpu: "500m"            # Total CPU REQUESTS across all Pods
+    requests.memory: "512Mi"        # Total memory REQUESTS across all Pods
+    limits.cpu: "1"                 # Total CPU LIMITS across all Pods
+    limits.memory: "1Gi"            # Total memory LIMITS across all Pods
+
+    # ----- Object counts ---------------------------------------------------
+    # These cap not how much resource each object uses but how many of each
+    # kind of object exist in the namespace.
+    pods: "10"
+    services: "5"
+    persistentvolumeclaims: "5"

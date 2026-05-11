@@ -1,0 +1,28 @@
+# =============================================================================
+# Pod WITH toleration — can schedule on the tainted workload node
+# =============================================================================
+# A toleration is the Pod's way of saying "I agree to accept this taint".
+# It must match the taint's key, value (or use operator: Exists), and effect.
+#
+# Important: a toleration ALLOWS the Pod onto a tainted node — it does NOT
+# force it there. To make the Pod land on the workload node, we ALSO add a
+# nodeSelector. Without the nodeSelector, the scheduler could legally place
+# this Pod on any untainted system node instead.
+# =============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: tolerant
+  namespace: lab09
+spec:
+  nodeSelector:
+    role: workload          # Steer toward the workload node...
+  tolerations:
+    - key: "dedicated"
+      operator: "Equal"
+      value: "ml"
+      effect: "NoSchedule"  # ...and tolerate the taint that node carries.
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]

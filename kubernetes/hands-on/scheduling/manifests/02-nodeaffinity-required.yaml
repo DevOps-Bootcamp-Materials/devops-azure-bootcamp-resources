@@ -1,0 +1,43 @@
+# =============================================================================
+# nodeAffinity — required (hard), with operators
+# =============================================================================
+# Equivalent to nodeSelector but expressed via a richer DSL. Use this when
+# you need any of:
+#   - Match against multiple acceptable values:  operator: In
+#   - Negation:                                  operator: NotIn
+#   - Presence regardless of value:              operator: Exists
+#   - Numeric comparisons on labels:             operator: Gt, Lt
+#
+# requiredDuringSchedulingIgnoredDuringExecution:
+#   - "required" → if no node matches, Pod stays Pending (hard filter)
+#   - "IgnoredDuringExecution" → if a label changes AFTER scheduling, the Pod
+#     is NOT evicted. The constraint is only enforced at scheduling time.
+# =============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: affinity-required
+  namespace: lab09
+  labels:
+    demo: nodeaffinity
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              # "Run me on a node whose 'role' label is one of these values."
+              - key: role
+                operator: In
+                values:
+                  - workload
+                  - app
+              # AND that has the 'kubernetes.io/arch' label (any value).
+              # The 'Exists' operator is useful for "this hardware feature
+              # is present regardless of which version it is".
+              - key: kubernetes.io/arch
+                operator: Exists
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]

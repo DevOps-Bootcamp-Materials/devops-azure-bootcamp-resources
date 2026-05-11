@@ -1,0 +1,67 @@
+groups:
+  - name: faulty-app
+    rules:
+      # ── Availability ────────────────────────────────────────────────────────
+
+      - alert: AppDown
+        expr: up{job="faulty-app"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "faulty-app is unreachable"
+          description: "Prometheus cannot scrape faulty-app. The service has been down for more than 30 seconds."
+
+      # ── Error rate ──────────────────────────────────────────────────────────
+
+      - alert: PaymentHighErrorRate
+        expr: |
+          sum(rate(app_requests_total{endpoint="/api/payments", status_code="500"}[2m]))
+          /
+          sum(rate(app_requests_total{endpoint="/api/payments"}[2m]))
+          > 0.05
+        for: 1m
+        labels:
+          severity: critical
+          team: payments
+        annotations:
+          summary: "High error rate on /api/payments"
+          description: >-
+            The error rate on /api/payments has been above 5% for more than 1 minute.
+            Current value: {{ printf "%.1f" (mul $value 100) }}%.
+            This may indicate a downstream dependency failure.
+
+      - alert: AnyEndpointHighErrorRate
+        expr: |
+          sum by (endpoint) (rate(app_requests_total{status_code="500"}[2m]))
+          /
+          sum by (endpoint) (rate(app_requests_total[2m]))
+          > 0.10
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High error rate on {{ $labels.endpoint }}"
+          description: >-
+            Error rate on {{ $labels.endpoint }} has exceeded 10% for 2 minutes.
+            Current value: {{ printf "%.1f" (mul $value 100) }}%.
+
+      # ── Latency ─────────────────────────────────────────────────────────────
+
+      - alert: PaymentSlowP95
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(app_request_duration_seconds_bucket{endpoint="/api/payments"}[5m]))
+          ) > 1.0
+        for: 2m
+        labels:
+          severity: warning
+          team: payments
+        annotations:
+          summary: "Payments p95 latency above 1 second"
+          description: >-
+            The 95th percentile latency for /api/payments is {{ printf "%.2f" $value }}s,
+            which has exceeded 1 second for more than 2 minutes.

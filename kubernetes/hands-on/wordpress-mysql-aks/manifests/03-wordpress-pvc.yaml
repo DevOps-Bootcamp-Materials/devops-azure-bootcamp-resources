@@ -1,0 +1,37 @@
+# =============================================================================
+# Azure Files PVC for WordPress's wp-content (RWX shared volume)
+# =============================================================================
+# This is the single most important difference between this lab and a naive
+# "WordPress on K8s" tutorial: the PVC requests ReadWriteMany so that ALL
+# WordPress replicas can write to the same /var/www/html/wp-content.
+#
+# In Azure, the only storage class that supports RWX out-of-the-box is
+# 'azurefile-csi' (or its premium variant), which provisions an SMB share on
+# an Azure Files account behind the scenes.
+#
+# Trade-offs vs Azure Disk:
+#   - SLOWER: SMB over the network, especially for many small files
+#   - SHARED: many Pods on many nodes can mount it simultaneously
+#   - DURABLE: backed by GRS by default — the underlying storage is replicated
+#
+# For wp-content (a few thousand mostly-cold image reads + occasional uploads)
+# this trade-off is correct. Do NOT use Azure Files for a database — the
+# performance will be unacceptable and many databases refuse to start on it.
+# =============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wordpress-content
+  namespace: wordpress
+  labels:
+    app: wordpress
+    lab: "07"
+spec:
+  accessModes:
+    - ReadWriteMany            # ← The key difference from MySQL's PVC.
+  storageClassName: azurefile-csi
+  resources:
+    requests:
+      storage: 5Gi             # Minimum size for a standard Azure Files share.
+                               # The provisioner may round up to the share's
+                               # minimum quota — that's fine.

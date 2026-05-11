@@ -1,0 +1,43 @@
+# Alerting rules for host-level metrics (Node Exporter)
+groups:
+  - name: host
+    rules:
+      # Alert if any scrape target has been down for more than 1 minute
+      - alert: TargetDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Target {{ $labels.job }} / {{ $labels.instance }} is down"
+          description: "Prometheus cannot scrape {{ $labels.instance }} (job={{ $labels.job }}). The target has been unreachable for more than 1 minute."
+
+      # Alert if CPU utilization exceeds 80% for 2 consecutive minutes
+      - alert: HighCpuUtilization
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU utilization on {{ $labels.instance }}"
+          description: "CPU utilization is {{ printf \"%.1f\" $value }}% on {{ $labels.instance }}, which has exceeded 80% for more than 2 minutes."
+
+      # Alert if available memory drops below 10% of total memory
+      - alert: LowMemoryAvailable
+        expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 < 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low available memory on {{ $labels.instance }}"
+          description: "Only {{ printf \"%.1f\" $value }}% of memory is available on {{ $labels.instance }}."
+
+      # Alert if any filesystem is more than 85% full
+      - alert: DiskSpaceRunningLow
+        expr: (node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} - node_filesystem_free_bytes{fstype!~"tmpfs|overlay"}) / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk space running low on {{ $labels.instance }}"
+          description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} is {{ printf \"%.1f\" $value }}% full."

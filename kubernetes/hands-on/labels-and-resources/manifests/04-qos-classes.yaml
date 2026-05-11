@@ -1,0 +1,68 @@
+# =============================================================================
+# Three Pods, three QoS classes — Kubernetes derives the class, you do NOT set it
+# =============================================================================
+# Kubernetes inspects each Pod's containers and assigns one of:
+#
+#   Guaranteed  : every container has requests==limits for BOTH cpu and memory
+#   Burstable   : at least one container has requests <  limits, OR requests
+#                 set but limits unset (or vice versa)
+#   BestEffort  : NO container in the Pod has any resources field set
+#
+# To verify after applying:
+#   kubectl get pods -l demo=qos -o custom-columns='NAME:.metadata.name,QOS:.status.qosClass'
+# =============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: guaranteed-pod
+  namespace: lab08
+  labels:
+    demo: qos
+spec:
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "64Mi"
+        limits:
+          cpu: "100m"           # = requests.cpu
+          memory: "64Mi"        # = requests.memory  →  Guaranteed
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: burstable-pod
+  namespace: lab08
+  labels:
+    demo: qos
+spec:
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "32Mi"
+        limits:
+          cpu: "200m"           # > requests.cpu
+          memory: "128Mi"       # > requests.memory  →  Burstable
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: besteffort-pod
+  namespace: lab08
+  labels:
+    demo: qos
+spec:
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]
+      # NO resources block at all → BestEffort.
+      # These are the first Pods evicted under node pressure and the first
+      # targeted by the OOM killer when memory runs out.

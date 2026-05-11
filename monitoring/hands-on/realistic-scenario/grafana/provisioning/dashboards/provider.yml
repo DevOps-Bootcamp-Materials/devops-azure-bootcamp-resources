@@ -1,0 +1,16 @@
+# Grafana provisioning — dashboard provider
+# Tells Grafana to look for JSON dashboard files in /etc/grafana/provisioning/dashboards
+# and reload them automatically when they change on disk.
+
+apiVersion: 1
+
+providers:
+  - name: "ironhack-dashboards"
+    orgId: 1
+    type: file
+    disableDeletion: true     # dashboards cannot be deleted from the UI
+    updateIntervalSeconds: 30 # check for file changes every 30 seconds
+    allowUiUpdates: false     # changes made in the UI are NOT saved back to disk
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

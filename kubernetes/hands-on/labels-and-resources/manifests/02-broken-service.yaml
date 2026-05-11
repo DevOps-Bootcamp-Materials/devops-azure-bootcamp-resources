@@ -1,0 +1,52 @@
+# =============================================================================
+# Service + Deployment for the "break the selector" experiment
+# =============================================================================
+# - Deployment 'demo-app' creates 2 Pods with labels {app: demo, tier: web}.
+# - Service 'demo-svc' selects Pods with the SAME labels and load-balances over
+#   their endpoints.
+# - In Part 3.1 we mutate ONE Pod's 'tier' label so it no longer matches the
+#   Service selector. We expect:
+#     * The Pod stays running (no controller deletes it)
+#     * Endpoints drop from 2 to 1 (the Service forgets that Pod)
+#     * The Deployment notices it owns only 1 matching Pod, so it creates a
+#       3rd one to maintain replicas=2. We end up with 3 running Pods total.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+  namespace: lab08
+  labels:
+    app: demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demo
+      tier: web        # The Deployment owns Pods that match BOTH labels.
+                       # NOTE: this selector is IMMUTABLE after creation.
+  template:
+    metadata:
+      labels:
+        app: demo      # Pod template labels MUST be a superset of selector.
+        tier: web
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-svc
+  namespace: lab08
+spec:
+  selector:
+    app: demo
+    tier: web          # Service selectors are mutable; you can edit them at
+                       # any time (try `kubectl edit svc demo-svc`).
+  ports:
+    - port: 80
+      targetPort: 80

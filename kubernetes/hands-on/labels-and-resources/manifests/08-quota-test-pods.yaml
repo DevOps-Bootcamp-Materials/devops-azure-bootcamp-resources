@@ -1,0 +1,70 @@
+# =============================================================================
+# ResourceQuota test — three Pods that exceed the namespace CPU request budget
+# =============================================================================
+# Quota from 08-resourcequota.yaml sets requests.cpu = 500m for the whole
+# namespace. Each Pod here requests 200m. The first two are admitted (200m +
+# 200m = 400m ≤ 500m). The third pushes the total to 600m, exceeding 500m,
+# and the API server rejects it with a clear error message.
+#
+# Run as: kubectl apply -f 08-quota-test-pods.yaml
+# Expected: pods 1 and 2 created, pod 3 rejected with 'exceeded quota'.
+# =============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: quota-pod-1
+  namespace: lab08
+  labels:
+    demo: quota
+spec:
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]
+      resources:
+        requests:
+          cpu: "200m"
+          memory: "64Mi"
+        limits:
+          cpu: "200m"
+          memory: "128Mi"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: quota-pod-2
+  namespace: lab08
+  labels:
+    demo: quota
+spec:
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]
+      resources:
+        requests:
+          cpu: "200m"
+          memory: "64Mi"
+        limits:
+          cpu: "200m"
+          memory: "128Mi"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: quota-pod-3
+  namespace: lab08
+  labels:
+    demo: quota
+spec:
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]
+      resources:
+        requests:
+          cpu: "200m"             # 200m + 200m + 200m = 600m > 500m quota → REJECTED
+          memory: "64Mi"
+        limits:
+          cpu: "200m"
+          memory: "128Mi"

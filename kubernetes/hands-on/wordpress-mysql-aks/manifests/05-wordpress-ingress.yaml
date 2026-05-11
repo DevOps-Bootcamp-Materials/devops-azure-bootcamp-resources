@@ -1,0 +1,39 @@
+# =============================================================================
+# Ingress — exposes WordPress to the internet via the AKS app routing addon
+# =============================================================================
+# Prerequisite: 'az aks approuting enable' has been run on the cluster
+# (instructions in the README). That creates an IngressClass named
+# 'webapprouting.kubernetes.azure.com' backed by an NGINX Ingress Controller
+# that AKS itself maintains.
+#
+# This Ingress matches any host and forwards root path traffic to the
+# wordpress Service on port 80. In production you would set:
+#   - tls: { secretName: ... }              for HTTPS via cert-manager
+#   - host: wordpress.example.com           and a DNS record pointing here
+#   - cert-manager.io/cluster-issuer: ...   annotation for automatic Let's Encrypt
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wordpress
+  namespace: wordpress
+  labels:
+    app: wordpress
+    lab: "07"
+  annotations:
+    # WordPress can serve large media. Default NGINX body limit is 1 MB which
+    # rejects most image uploads. Bump it to 32 MB.
+    nginx.ingress.kubernetes.io/proxy-body-size: "32m"
+spec:
+  ingressClassName: webapprouting.kubernetes.azure.com
+  rules:
+    - http:                           # No 'host:' → matches any Host header.
+                                       # In production set a real domain.
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: wordpress
+                port:
+                  number: 80

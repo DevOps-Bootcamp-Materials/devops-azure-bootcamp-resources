@@ -1,0 +1,67 @@
+# =============================================================================
+# subPath — mount ONE FILE without overlaying the entire directory
+# =============================================================================
+# Problem: nginx's image ships with a populated /etc/nginx/ directory
+# (nginx.conf, mime.types, fastcgi_params, scgi_params, uwsgi_params, modules/).
+# If you mount a ConfigMap at /etc/nginx/, you HIDE all of those files —
+# nginx fails to start because it cannot find mime.types.
+#
+# Solution: use subPath to mount ONLY the file you care about, leaving the
+# rest of /etc/nginx/ untouched.
+#
+# Caveat: subPath disables the auto-refresh behaviour. If you edit the
+# ConfigMap, the file mounted via subPath does NOT update. Use this trick only
+# for configuration that does not need live reload, or pair it with a different
+# strategy (Reloader operator, init container generating files into emptyDir).
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-main-config
+  namespace: lab04
+  labels:
+    lab: "04"
+data:
+  nginx.conf: |
+    worker_processes 1;
+    events { worker_connections 1024; }
+    http {
+      include /etc/nginx/mime.types;       # ← This is why subPath matters:
+                                            # without it, /etc/nginx/mime.types
+                                            # would be hidden by the volume
+                                            # mount and nginx would fail.
+      default_type application/octet-stream;
+      server {
+        listen 80;
+        location / { return 200 "subPath demo\n"; }
+      }
+    }
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: subpath-demo
+  namespace: lab04
+  labels:
+    lab: "04"
+spec:
+  containers:
+    - name: nginx
+      image: nginx:1.27-alpine
+      ports:
+        - containerPort: 80
+      volumeMounts:
+        - name: main-config
+          mountPath: /etc/nginx/nginx.conf  # Mount path is a FILE, not a dir.
+          subPath: nginx.conf                # Pick the 'nginx.conf' key from
+                                             # the ConfigMap and mount only it.
+                                             # The rest of /etc/nginx/ stays
+                                             # exactly as the image ships it.
+          readOnly: true
+
+  volumes:
+    - name: main-config
+      configMap:
+        name: nginx-main-config

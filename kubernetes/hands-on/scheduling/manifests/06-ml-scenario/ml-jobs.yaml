@@ -1,0 +1,74 @@
+# =============================================================================
+# ML training "Jobs" — must land on the ML pool AND spread across nodes
+# =============================================================================
+# This is the canonical "dedicated pool" pattern:
+#
+#   1. tolerations            → allow this Pod onto the tainted node
+#   2. nodeSelector            → FORCE the Pod onto the ML pool
+#                                (a toleration alone would let it run anywhere)
+#   3. podAntiAffinity         → at most one ML job per node, so different jobs
+#                                don't compete for the GPU
+#
+# We use a Deployment for simplicity (so we get scale-up demos for free).
+# In a real ML pipeline you would use Job or a workflow engine (Argo, Kubeflow).
+#
+# Expected outcome with 1 ML node:
+#   - ml-job replica 1 lands on the workload node
+#   - ml-job replicas 2 and 3 stay Pending (anti-affinity blocks them)
+# Scale the AKS pool to 3 nodes and all three Pods schedule.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-job
+  namespace: lab09
+  labels:
+    app: ml-job
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ml-job
+  template:
+    metadata:
+      labels:
+        app: ml-job
+    spec:
+      # (1) Tolerate the ML pool taint.
+      tolerations:
+        - key: "workload-type"
+          operator: "Equal"
+          value: "ml"
+          effect: "NoSchedule"
+
+      # (2) Force placement onto ML nodes (not just "allow").
+      nodeSelector:
+        workload-type: ml
+
+      # (3) No two ML jobs on the same node — prevents GPU contention.
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values: ["ml-job"]
+              topologyKey: kubernetes.io/hostname
+
+      containers:
+        - name: trainer
+          image: busybox:1.36
+          # Simulate a long-running training step:
+          command: ["sh", "-c", "echo 'pretending to train...'; sleep 3600"]
+          # If this were a real GPU job, you would request the device here:
+          # resources:
+          #   limits:
+          #     nvidia.com/gpu: 1
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"

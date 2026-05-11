@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-v2-deployment
+  namespace: lab02
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: web
+        version: v2
+    spec:
+      containers:
+        - name: web
+          # Using httpd as a second application to visually differentiate it from v1
+          image: httpd:2.4
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"

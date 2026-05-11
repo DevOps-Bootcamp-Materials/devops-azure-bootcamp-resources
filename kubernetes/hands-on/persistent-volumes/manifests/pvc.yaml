@@ -1,0 +1,50 @@
+# =============================================================================
+# PERSISTENTVOLUMECLAIM (PVC) — Developer's storage request
+# =============================================================================
+# A PVC is what the developer (or the app) creates to REQUEST storage.
+# The developer does NOT need to know about the underlying infrastructure:
+#   - Which cloud provider hosts the disk
+#   - What RAID level or replication factor the storage uses
+#   - On which node the data physically lives
+#
+# Kubernetes matches the PVC to a suitable PV automatically using:
+#   1. storageClassName must match (or both must be empty for static provisioning)
+#   2. accessModes: PV must support all modes requested by the PVC
+#   3. capacity: PV capacity must be >= PVC requested storage
+#   4. selector (optional): label-based PV filtering
+#
+# If no matching PV exists and no StorageClass is set, the PVC stays in
+# 'Pending' state until an admin creates a matching PV.
+#
+# Once bound, the PVC is exclusive to the Pod(s) that mount it.
+# No other PVC can claim the same PV (for RWO volumes).
+# =============================================================================
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-pvc
+  namespace: lab04    # PVCs ARE namespaced — they belong to a team/app namespace.
+                      # PVs are cluster-scoped. This separation models the
+                      # admin (cluster) vs developer (namespace) boundary.
+  labels:
+    lab: "04"
+spec:
+  # Must be a subset of the PV's accessModes.
+  # If the PV supports [RWO, ROX] and you request [RWO], the binding succeeds.
+  accessModes:
+    - ReadWriteOnce
+
+  # "" → static provisioning: Kubernetes looks for an existing PV with
+  # storageClassName: "" that satisfies the other constraints.
+  # If you name a StorageClass here (e.g. "standard"), Kubernetes calls
+  # that StorageClass's provisioner to create a PV on demand.
+  storageClassName: ""
+
+  resources:
+    requests:
+      storage: 500Mi    # Minimum required. Kubernetes may bind a larger PV
+                        # (our PV offers 1Gi). The extra capacity is technically
+                        # available but the PVC does not expand automatically.
+                        # Use VolumeExpansion (if the StorageClass supports it)
+                        # to grow a bound PVC.

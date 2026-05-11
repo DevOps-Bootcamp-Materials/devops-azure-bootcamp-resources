@@ -1,0 +1,49 @@
+# =============================================================================
+# emptyDir.medium: Memory — tmpfs-backed scratch space
+# =============================================================================
+# Same emptyDir, but backed by RAM (tmpfs) instead of the node's ephemeral disk.
+#
+# When to use:
+#   - Sensitive data that must NEVER be written to disk (decrypted secrets,
+#     short-lived tokens)
+#   - Performance-critical scratch (sub-millisecond I/O)
+#   - In-memory caches that you explicitly want to wipe on Pod restart
+#
+# Caveats:
+#   - The bytes in the tmpfs count against the container's memory limit.
+#     A 500 MB write into the tmpfs is a 500 MB increase in the container's
+#     measured memory usage, which can trigger an OOM kill.
+#   - There is no swap (Kubernetes disables it by default), so this really is RAM.
+# =============================================================================
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: tmpfs-cache
+  namespace: lab04
+  labels:
+    lab: "04"
+spec:
+  containers:
+    - name: app
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]
+      resources:
+        # Set a memory limit so the impact of writes to the tmpfs is visible.
+        # Try writing more than 64 Mi to /cache and watch the Pod get OOM-killed.
+        limits:
+          memory: "128Mi"
+        requests:
+          memory: "64Mi"
+      volumeMounts:
+        - name: cache
+          mountPath: /cache
+
+  volumes:
+    - name: cache
+      emptyDir:
+        medium: Memory      # Switch from default disk-backed to tmpfs (RAM).
+        sizeLimit: 64Mi     # Maximum size the tmpfs can grow to. Writes beyond
+                            # this fail with "No space left on device".
+                            # Without sizeLimit, the tmpfs can use up to the
+                            # container's memory limit, which is dangerous.

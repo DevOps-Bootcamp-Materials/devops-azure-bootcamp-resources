@@ -1,0 +1,65 @@
+# =============================================================================
+# REPLICASET — Availability guarantee for a set of identical Pods
+# =============================================================================
+# A ReplicaSet continuously reconciles two things:
+#   - DESIRED state: the number of replicas you declare here
+#   - ACTUAL state:  the number of Pods currently running that match the selector
+#
+# Reconciliation loop (simplified):
+#   1. Count running Pods matching spec.selector
+#   2. If count < replicas → create new Pods using spec.template
+#   3. If count > replicas → delete excess Pods (oldest first)
+#   4. Go to step 1 (runs forever)
+#
+# In practice you almost never create ReplicaSets directly. Use a Deployment,
+# which wraps a ReplicaSet and adds rolling update and rollback capabilities.
+# =============================================================================
+
+apiVersion: apps/v1     # 'apps' group contains Deployment, ReplicaSet, StatefulSet, DaemonSet
+kind: ReplicaSet
+metadata:
+  name: nginx-rs
+  namespace: lab01
+  labels:
+    app: nginx
+    lab: "01"
+spec:
+  replicas: 2           # Desired number of Pod instances. Change this and apply —
+                        # the controller reacts immediately without any restart needed.
+
+  # ---------------------------------------------------------------------------
+  # selector — the ReplicaSet's "ownership" filter.
+  # It finds Pods by matching labels, NOT by name or creation order.
+  #
+  # CRITICAL: if you manually create a Pod with labels that match this selector
+  # in the same namespace, the ReplicaSet will adopt it and may immediately
+  # delete it to stay at the desired replica count. Always use unique label sets.
+  # ---------------------------------------------------------------------------
+  selector:
+    matchLabels:
+      app: nginx        # Must be a subset of the labels in spec.template.metadata.labels.
+                        # Kubernetes validates this at admission time — a mismatch is rejected.
+
+  # ---------------------------------------------------------------------------
+  # template — the Pod blueprint used to create new replicas.
+  # Everything under spec.template is a standard Pod spec.
+  # The ReplicaSet stamps this out whenever it needs a new Pod.
+  # ---------------------------------------------------------------------------
+  template:
+    metadata:
+      labels:
+        app: nginx      # These labels MUST satisfy spec.selector.matchLabels.
+                        # The ReplicaSet controller enforces this invariant.
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.25
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"

@@ -1,0 +1,15 @@
+# =============================================================================
+# Namespace for the capstone lab
+# =============================================================================
+# All resources for this lab live in the 'wordpress' namespace. Using a
+# dedicated namespace makes cleanup trivial (delete the namespace → everything
+# inside it goes away, except cluster-scoped resources like PVs and
+# VolumeSnapshots — those have to be cleaned up explicitly).
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: wordpress
+  labels:
+    lab: "07"
+    purpose: capstone

@@ -1,0 +1,34 @@
+# =============================================================================
+# LimitRange — per-namespace defaults and bounds
+# =============================================================================
+# A LimitRange does two things at Pod admission time:
+#   1. Injects DEFAULT requests/limits for containers that omit them, so
+#      no Pod ends up as BestEffort by accident.
+#   2. ENFORCES min/max bounds — Pods that ask for less than min or more than
+#      max are rejected by the API server before they are created.
+#
+# This is how multi-tenant clusters prevent a single namespace from declaring
+# 'requests.memory: 4Gi' on every Pod and exhausting the node.
+# =============================================================================
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: resources-default
+  namespace: lab08
+spec:
+  limits:
+    - type: Container
+      # ----- Defaults applied when the container omits the field ------------
+      default:                # Applied to .limits if missing
+        cpu: "200m"
+        memory: "256Mi"
+      defaultRequest:         # Applied to .requests if missing
+        cpu: "100m"
+        memory: "64Mi"
+      # ----- Hard bounds — API server rejects anything outside -------------
+      min:
+        cpu: "50m"
+        memory: "16Mi"
+      max:
+        cpu: "1"
+        memory: "512Mi"       # Lab demo: try to request 4Gi and watch admission reject it.

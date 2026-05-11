@@ -1,0 +1,77 @@
+# =============================================================================
+# ConfigMap MOUNTED AS A VOLUME — config files for the application
+# =============================================================================
+# Same ConfigMap object as in lab 03, but consumed differently. Each KEY in
+# the ConfigMap becomes a FILE in the mounted directory, with the value as
+# the file content.
+#
+# Why mount as a volume instead of injecting as env vars?
+#   - The app expects a config FILE, not env vars (nginx, prometheus,
+#     postgres, most JVM apps)
+#   - Values are multi-line / structured (YAML, JSON, conf)
+#   - You want LIVE updates without restarting the Pod
+#
+# What the kubelet does:
+#   - Creates a temporary directory on the node
+#   - Writes each key as a file into it
+#   - Mounts that directory into the container at mountPath
+#   - Periodically (~60s) re-syncs if the ConfigMap changes upstream
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: lab04
+  labels:
+    lab: "04"
+data:
+  # The KEY 'default.conf' becomes the FILE 'default.conf' in the mount.
+  # nginx's default image loads any *.conf under /etc/nginx/conf.d/.
+  default.conf: |
+    server {
+      listen 80;
+      server_name _;
+
+      location / {
+        # Send a plain-text response identifying the source of the message.
+        # When the ConfigMap is edited, this string changes and the mounted
+        # file updates within ~60s — but nginx must be reloaded to pick it up.
+        return 200 "Hello from ConfigMap\n";
+        add_header Content-Type text/plain;
+      }
+    }
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-configured
+  namespace: lab04
+  labels:
+    lab: "04"
+spec:
+  containers:
+    - name: nginx
+      image: nginx:1.27-alpine
+      ports:
+        - containerPort: 80
+      volumeMounts:
+        - name: nginx-conf
+          mountPath: /etc/nginx/conf.d   # The volume mount OVERLAYS this dir.
+                                         # Anything the image had there is
+                                         # hidden by the mount. nginx's base
+                                         # /etc/nginx/conf.d/ in the upstream
+                                         # image only contains 'default.conf'
+                                         # anyway, so we are not losing much.
+
+  volumes:
+    - name: nginx-conf
+      configMap:
+        name: nginx-config       # The ConfigMap to mount.
+        defaultMode: 0644        # File mode for all keys. Default is 0644 already
+                                 # for ConfigMaps. Specify it explicitly when you
+                                 # need scripts to be executable (0755).
+        # items: []              # Optional: restrict which keys to expose, or
+                                 # rename them. If omitted, every key in the
+                                 # ConfigMap appears as a file with the same name.

@@ -1,0 +1,41 @@
+# =============================================================================
+# nodeAffinity — preferred (soft), with weighted preferences
+# =============================================================================
+# preferredDuringSchedulingIgnoredDuringExecution is a SOFT preference: the
+# scheduler adds the weight to the node's score if the preference matches.
+# If no node matches, the Pod still schedules anywhere it fits.
+#
+# 'weight' is an integer 1..100. Multiple preferences accumulate:
+#   matching node = sum of weights of all matched preferences
+#
+# Typical use: prefer a faster instance class, fall back to anything.
+# =============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: affinity-preferred
+  namespace: lab09
+  labels:
+    demo: nodeaffinity
+spec:
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        # Highest priority: prefer the workload pool
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: role
+                operator: In
+                values: ["workload"]
+        # Mild fallback: prefer AMD64 nodes (vs ARM64).
+        - weight: 10
+          preference:
+            matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values: ["amd64"]
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]

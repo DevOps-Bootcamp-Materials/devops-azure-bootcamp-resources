@@ -1,0 +1,58 @@
+# =============================================================================
+# hostPath — mount a directory from the NODE into the Pod
+# =============================================================================
+# This Pod inspects /var/log from the underlying node. It mimics the legitimate
+# use case: an infrastructure agent (Filebeat, Fluent Bit, node-exporter) that
+# needs to see node-level state.
+#
+# DANGER ZONE:
+#   - hostPath gives the Pod direct access to the node filesystem.
+#   - With the wrong path you can mount /etc/kubernetes/admin.conf, the docker
+#     socket (/var/run/docker.sock), kernel cgroups, etc.
+#   - Most production clusters BLOCK hostPath for application namespaces via
+#     PodSecurity admission ('restricted' profile) or OPA/Kyverno policies.
+#
+# Use it only for:
+#   - DaemonSets running cluster-level agents
+#   - Local development with minikube/kind
+#   - One-off debugging Pods (like this one)
+# =============================================================================
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: node-inspector
+  namespace: lab04
+  labels:
+    lab: "04"
+    role: debug
+spec:
+  containers:
+    - name: shell
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]
+      volumeMounts:
+        - name: node-var-log
+          mountPath: /host-var-log    # We mount the host's /var/log here.
+                                      # Note the prefix 'host-' — a convention
+                                      # to make it obvious in logs and exec
+                                      # that this is NOT the container's own
+                                      # filesystem.
+          readOnly: true              # Always mount hostPath read-only unless
+                                      # you genuinely need to write back.
+
+  volumes:
+    - name: node-var-log
+      hostPath:
+        path: /var/log                # Path ON THE NODE. With minikube this is
+                                      # the minikube VM's /var/log. With kind
+                                      # it would be the kind node container's
+                                      # /var/log.
+        type: Directory               # Other types:
+                                      #   DirectoryOrCreate — create if missing
+                                      #   File              — must exist, must be a file
+                                      #   FileOrCreate      — create empty file if missing
+                                      #   Socket            — UNIX socket
+                                      #   CharDevice / BlockDevice — device nodes
+                                      # 'Directory' refuses to start if /var/log
+                                      # is not already a directory on the node.

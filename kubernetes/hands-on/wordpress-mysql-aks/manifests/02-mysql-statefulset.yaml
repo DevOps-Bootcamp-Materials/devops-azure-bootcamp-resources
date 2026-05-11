@@ -1,0 +1,146 @@
+# =============================================================================
+# MySQL — StatefulSet + headless Service + dynamic Azure Disk PVC
+# =============================================================================
+# Three resources in one file because they are inseparable conceptually:
+#
+#   1. Headless Service        → stable DNS for the StatefulSet Pods
+#   2. StatefulSet             → controller that guarantees identity and order
+#   3. volumeClaimTemplate     → auto-creates one PVC per replica (RWO Azure Disk)
+#
+# Why a StatefulSet and not a Deployment for a single MySQL replica?
+#   - Deployments do not give Pods stable names. After a delete-and-recreate
+#     the new Pod could be 'mysql-7f9b6c44-xyz' and we'd lose the link to
+#     the PVC, since the PVC name in a Deployment is fixed.
+#   - StatefulSet Pods are named <sts-name>-<ordinal> (mysql-0). The PVC
+#     created by the volumeClaimTemplate is named <template-name>-<sts>-<ordinal>
+#     (mysql-data-mysql-0). The two are tied for the lifetime of the cluster.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Headless Service — required by every StatefulSet.
+# clusterIP: None disables load-balancing; DNS resolves directly to Pod IPs.
+# WordPress will connect to 'mysql-0.mysql.wordpress.svc.cluster.local'.
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: wordpress
+  labels:
+    app: mysql
+spec:
+  clusterIP: None      # ← Headless. No virtual IP. No load balancing.
+                       #   DNS for each Pod is created instead.
+  selector:
+    app: mysql
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+
+---
+# -----------------------------------------------------------------------------
+# StatefulSet — manages the MySQL Pod(s)
+# -----------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: wordpress
+  labels:
+    app: mysql
+    lab: "07"
+spec:
+  serviceName: mysql           # MUST match the headless Service above.
+                               # This is what gives Pods their DNS entries.
+  replicas: 1                  # Vanilla MySQL has no native HA. See README:
+                               # we keep it at 1 deliberately. Production would
+                               # use a MySQL Operator (Percona, Oracle InnoDB
+                               # Cluster) or a managed service (Azure DB for MySQL).
+  selector:
+    matchLabels:
+      app: mysql
+
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      # The default service account is fine here. No special RBAC needed.
+      terminationGracePeriodSeconds: 30    # Give MySQL time to flush + shutdown.
+
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          imagePullPolicy: IfNotPresent
+          args:
+            # mysql_native_password is what WordPress's PHP MySQL client speaks
+            # by default. Newer MySQL defaults to caching_sha2_password which
+            # WordPress images sometimes can't negotiate.
+            - --default-authentication-plugin=mysql_native_password
+          ports:
+            - name: mysql
+              containerPort: 3306
+
+          # All credentials come from the Secret. envFrom imports every key
+          # in the Secret as an env var with the same name.
+          envFrom:
+            - secretRef:
+                name: mysql-credentials
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+
+          # Liveness: is the process responsive at all? Restart if not.
+          livenessProbe:
+            exec:
+              command: ["mysqladmin", "ping", "-h", "127.0.0.1"]
+            initialDelaySeconds: 30   # MySQL's first boot takes longer than
+                                      # subsequent ones (initialises data dir).
+            periodSeconds: 10
+            timeoutSeconds: 5
+
+          # Readiness: is MySQL accepting queries? Removed from Service endpoints if not.
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "mysql -uroot -p\"$MYSQL_ROOT_PASSWORD\" -e 'SELECT 1'"
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            timeoutSeconds: 3
+
+          volumeMounts:
+            - name: mysql-data           # References the volumeClaimTemplate below
+              mountPath: /var/lib/mysql  # MySQL's data directory
+
+  # ---------------------------------------------------------------------------
+  # volumeClaimTemplates — the magic of StatefulSet.
+  # For each replica, Kubernetes creates ONE PVC from this template, named
+  # '<template-name>-<sts-name>-<ordinal>'. With 1 replica we get a single PVC:
+  #     mysql-data-mysql-0
+  # The PVC persists even if you delete the StatefulSet. Re-creating the STS
+  # with the same name finds the existing PVC and re-attaches it.
+  # ---------------------------------------------------------------------------
+  volumeClaimTemplates:
+    - metadata:
+        name: mysql-data
+        labels:
+          app: mysql
+          lab: "07"
+      spec:
+        accessModes:
+          - ReadWriteOnce              # Azure Disk is RWO — one node at a time.
+                                        # Perfect for a single-writer database.
+        storageClassName: managed-csi  # Azure Disk via the Azure Disk CSI driver.
+                                        # Use 'managed-csi-premium' for Premium SSD
+                                        # (lower latency, higher cost).
+        resources:
+          requests:
+            storage: 10Gi

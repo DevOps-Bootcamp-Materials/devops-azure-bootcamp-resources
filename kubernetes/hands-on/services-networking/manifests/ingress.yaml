@@ -1,0 +1,86 @@
+# =============================================================================
+# INGRESS — HTTP/S routing layer at the edge of the cluster
+# =============================================================================
+# An Ingress is NOT a load balancer itself. It is a set of routing rules.
+# An Ingress CONTROLLER (a separate deployment, e.g. nginx-ingress) reads
+# these rules and programs itself accordingly.
+#
+# The split between Ingress (rules) and IngressController (implementation)
+# means you can swap the controller (nginx → Traefik → HAProxy) without
+# changing your Ingress objects.
+#
+# What Ingress gives you over NodePort:
+#   - Route a single external IP/port to MANY backend services
+#   - Route by HTTP host header (virtual hosting): api.example.com → api-service
+#   - Route by URL path: example.com/api → api-service, example.com/web → web-service
+#   - TLS termination with automatic certificate management (cert-manager)
+#   - Rate limiting, authentication, custom headers (via annotations)
+#
+# Prerequisites for this lab:
+#   minikube addons enable ingress
+#   (this deploys the nginx IngressController into the ingress-nginx namespace)
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-ingress
+  namespace: lab02
+  labels:
+    lab: "02"
+  annotations:
+    # Annotations configure the specific IngressController behavior.
+    # These are nginx-specific — different controllers use different annotation keys.
+
+    # rewrite-target: strip the path prefix before forwarding to the backend.
+    # Without this: GET /app → nginx receives /app → 404 (nginx only serves /)
+    # With this:    GET /app → nginx receives /    → 200 OK
+    nginx.ingress.kubernetes.io/rewrite-target: /
+
+    # Other useful nginx annotations (uncomment to experiment):
+    # nginx.ingress.kubernetes.io/proxy-body-size: "10m"         # Max request body
+    # nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"    # Backend connect timeout
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"           # Force HTTP → HTTPS
+    # nginx.ingress.kubernetes.io/limit-rps: "10"                # Rate limit per IP
+
+spec:
+  # ingressClassName links this Ingress to the correct controller.
+  # Run 'kubectl get ingressclass' to see available classes.
+  # minikube creates a class named 'nginx' when the ingress addon is enabled.
+  ingressClassName: nginx
+
+  rules:
+    # A rule matches on host header AND/OR path.
+    # If 'host' is omitted, the rule matches any hostname (wildcard).
+    - host: ironhack.local    # The client must send Host: ironhack.local in the HTTP request.
+                              # In production this is your real DNS name (e.g. app.example.com).
+                              # For local testing, add an entry to /etc/hosts.
+      http:
+        paths:
+          # Path matching: 'Prefix' means the rule matches /app AND /app/anything.
+          # 'Exact' would only match the literal path /app.
+          - path: /app
+            pathType: Prefix
+            backend:
+              service:
+                name: web-service     # Must exist in the SAME namespace as this Ingress.
+                port:
+                  number: 80
+
+          - path: /app-v2
+            pathType: Prefix
+            backend:
+              service:
+                name: web-v2-service
+                port:
+                  number: 80
+
+  # ---------------------------------------------------------------------------
+  # TLS — terminate HTTPS at the Ingress controller.
+  # Requires a Secret of type kubernetes.io/tls with the certificate and key.
+  # In production, cert-manager automates certificate provisioning (Let's Encrypt).
+  # ---------------------------------------------------------------------------
+  # tls:
+  #   - hosts:
+  #       - ironhack.local
+  #     secretName: ironhack-tls   # Secret must be in the same namespace as the Ingress

@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-lb
+  namespace: lab05
+  labels:
+    app: ironhack-web
+  annotations:
+    # Azure-specific: give the public IP a DNS label so the service is also
+    # reachable as <dns-label>.<region>.cloudapp.azure.com
+    service.beta.kubernetes.io/azure-dns-label-name: "ironhack-aks-lab05"
+spec:
+  type: LoadBalancer
+  selector:
+    app: ironhack-web
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80         # port exposed externally by the Azure Load Balancer
+      targetPort: 80   # port on the Pod containers

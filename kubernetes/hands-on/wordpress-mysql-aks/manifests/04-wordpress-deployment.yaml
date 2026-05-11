@@ -1,0 +1,132 @@
+# =============================================================================
+# WordPress — Deployment + ClusterIP Service
+# =============================================================================
+# WordPress is stateless from Kubernetes's point of view: all persistent state
+# lives in MySQL (posts, users, settings) and on the shared Azure Files volume
+# (uploaded media, installed plugins, themes). That makes a Deployment the
+# right primitive — we can scale up and down freely.
+#
+# Why a Deployment with replicas=1 to start (scaled later)?
+#   - WordPress's first boot installs all the core files into /var/www/html.
+#     If three replicas race to do that simultaneously on the same shared
+#     volume, you can end up with corrupted files. We start with one replica,
+#     let it finish initialisation, then scale.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Service — internal ClusterIP that the Ingress targets
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: wordpress
+  namespace: wordpress
+  labels:
+    app: wordpress
+spec:
+  type: ClusterIP             # Default. The Ingress is what publishes us externally.
+  selector:
+    app: wordpress
+  ports:
+    - port: 80                # Service port
+      targetPort: 80          # Container port
+      protocol: TCP
+
+---
+# -----------------------------------------------------------------------------
+# Deployment
+# -----------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordpress
+  namespace: wordpress
+  labels:
+    app: wordpress
+    lab: "07"
+spec:
+  replicas: 1                 # Start at 1. Scale later (Part 6) once the
+                              # initial bootstrap of wp-content is done.
+  selector:
+    matchLabels:
+      app: wordpress
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0       # Always keep at least N-1 ready during updates.
+
+  template:
+    metadata:
+      labels:
+        app: wordpress
+    spec:
+      containers:
+        - name: wordpress
+          image: wordpress:6.5-php8.2-apache
+          ports:
+            - containerPort: 80
+
+          env:
+            # MySQL endpoint — the STABLE FQDN that the headless Service gives
+            # to the Pod 'mysql-0'. WordPress connects directly to this Pod by
+            # name; if mysql-0 gets rescheduled, DNS continues to resolve.
+            - name: WORDPRESS_DB_HOST
+              value: "mysql-0.mysql.wordpress.svc.cluster.local:3306"
+
+            # Database name + non-root user — read from the same Secret as MySQL.
+            - name: WORDPRESS_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: MYSQL_DATABASE
+            - name: WORDPRESS_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: MYSQL_USER
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: MYSQL_PASSWORD
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          # Readiness: is Apache responding? Service drops the Pod from
+          # endpoints until this passes (so users never hit a half-initialised
+          # Pod).
+          readinessProbe:
+            httpGet:
+              path: /wp-login.php       # Static page, always 200 once Apache is up
+              port: 80
+            initialDelaySeconds: 20     # First boot of WordPress unpacks ~50 MB
+                                         # to wp-content. Be patient.
+            periodSeconds: 5
+            failureThreshold: 6
+
+          livenessProbe:
+            tcpSocket:
+              port: 80
+            initialDelaySeconds: 60
+            periodSeconds: 20
+
+          volumeMounts:
+            # The shared Azure Files volume hosts ALL the runtime state of
+            # WordPress: media uploads, installed plugins, themes, mu-plugins.
+            # Mounting it at /var/www/html/wp-content (NOT /var/www/html) means
+            # the WordPress core PHP files remain in the container image, which
+            # avoids version drift between replicas.
+            - name: wp-content
+              mountPath: /var/www/html/wp-content
+
+      volumes:
+        - name: wp-content
+          persistentVolumeClaim:
+            claimName: wordpress-content

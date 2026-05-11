@@ -1,0 +1,64 @@
+global:
+  resolve_timeout: 5m
+  # SMTP configuration for Mailhog (local fake SMTP — no real account needed)
+  smtp_smarthost: "mailhog:1025"
+  smtp_from: "alertmanager@ironhack-lab.local"
+  smtp_require_tls: false
+
+templates:
+  - "/etc/alertmanager/templates/*.tmpl"
+
+route:
+  receiver: "email-default"
+  group_by: ["alertname", "team"]
+  group_wait: 15s
+  group_interval: 1m
+  repeat_interval: 5m
+
+  routes:
+    # Critical payments alerts go to a separate receiver so they can be
+    # differentiated (in production: different on-call, different Slack channel)
+    - match:
+        severity: critical
+        team: payments
+      receiver: "email-payments-critical"
+      group_wait: 10s
+      repeat_interval: 3m
+
+receivers:
+  - name: "email-default"
+    email_configs:
+      - to: "oncall@ironhack-lab.local"
+        headers:
+          Subject: "[{{ .Status | toUpper }}] {{ .GroupLabels.alertname }}"
+        html: |
+          <b>Alert:</b> {{ .GroupLabels.alertname }}<br>
+          <b>Status:</b> {{ .Status }}<br>
+          <b>Severity:</b> {{ .GroupLabels.severity }}<br>
+          <hr>
+          {{ range .Alerts }}
+          <b>Summary:</b> {{ .Annotations.summary }}<br>
+          <b>Details:</b> {{ .Annotations.description }}<br>
+          <b>Started:</b> {{ .StartsAt }}<br>
+          <hr>
+          {{ end }}
+        send_resolved: true
+
+  - name: "email-payments-critical"
+    email_configs:
+      - to: "payments-oncall@ironhack-lab.local"
+        headers:
+          Subject: "🔴 CRITICAL [{{ .Status | toUpper }}] {{ .GroupLabels.alertname }}"
+        html: |
+          <h2 style="color:red">🔴 Critical Alert — Payments Service</h2>
+          <b>Alert:</b> {{ .GroupLabels.alertname }}<br>
+          <b>Status:</b> {{ .Status }}<br>
+          <hr>
+          {{ range .Alerts }}
+          <b>Summary:</b> {{ .Annotations.summary }}<br>
+          <b>Details:</b> {{ .Annotations.description }}<br>
+          <b>Started:</b> {{ .StartsAt }}<br>
+          {{ end }}
+          <hr>
+          <p>Check the dashboard: <a href="http://localhost:3000">Grafana</a></p>
+        send_resolved: true

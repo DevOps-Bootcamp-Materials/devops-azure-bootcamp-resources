@@ -21,7 +21,8 @@ kubernetes/
     ├── aks/                      ← Lab: managed cluster on Azure, app reachable from the browser
     ├── wordpress-mysql-aks/      ← Capstone: full WordPress + MySQL stack on AKS combining everything
     ├── labels-and-resources/    ← Lab: labels/selectors, requests/limits, QoS, LimitRange, ResourceQuota
-    └── scheduling/               ← Lab: nodeSelector, nodeAffinity, podAffinity, taints/tolerations, topologySpreadConstraints
+    ├── scheduling/               ← Lab: nodeSelector, nodeAffinity, podAffinity, taints/tolerations, topologySpreadConstraints
+    └── daemonsets/               ← Lab: DaemonSets — one Pod per node, nodeSelector, tolerations, hostPath, update strategies
 ```
 
 ## Prerequisites
@@ -58,3 +59,4 @@ Follow the labs in numerical order. Each one introduces concepts that the next o
 | 07 | Capstone: WordPress + MySQL on AKS — Azure Disk (RWO) + Azure Files (RWX), Ingress, VolumeSnapshot | 90 min |
 | 08 | Labels & selectors, resource requests/limits, QoS classes, LimitRange, ResourceQuota | 60 min |
 | 09 | Scheduling: nodeSelector, nodeAffinity, podAffinity, taints/tolerations, topology spread (on AKS multi-pool) | 75 min |
+| 10 | DaemonSets: one Pod per node, node selection, hostPath agents, tolerate-everything pattern, update strategies | 45 min |

@@ -1,0 +1,72 @@
+# =============================================================================
+# Log collector pattern — the canonical real-world DaemonSet
+# =============================================================================
+# A node-level log shipper (think fluent-bit, promtail, the Azure Monitor
+# agent) needs three things:
+#   1. One Pod per node, scheduled automatically as nodes come and go.
+#      → DaemonSet
+#   2. Read access to the node's log directory (/var/log on Linux).
+#      → hostPath volume, mounted read-only
+#   3. To be schedulable on every node, including tainted ones (covered in
+#      manifest 04). This minimal version only covers untainted nodes.
+#
+# In this example we just tail one of the host's log files and print it to the
+# container's stdout — the container engine would then forward those lines to
+# the configured cluster log backend.
+# =============================================================================
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: log-collector
+  namespace: lab10
+  labels:
+    app: log-collector
+spec:
+  selector:
+    matchLabels:
+      app: log-collector
+  template:
+    metadata:
+      labels:
+        app: log-collector
+    spec:
+      terminationGracePeriodSeconds: 5
+      containers:
+        - name: log-collector
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            # Pick whichever common log exists on the host. The exact file
+            # depends on the node OS — busybox lets us try several.
+            - |
+              echo "log-collector started on $NODE_NAME"
+              for candidate in /host-logs/syslog /host-logs/messages /host-logs/dmesg; do
+                if [ -r "$candidate" ]; then
+                  echo "tailing $candidate"
+                  exec tail -F -n 5 "$candidate"
+                fi
+              done
+              echo "no readable host log found, sleeping"
+              sleep infinity
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: host-logs
+              mountPath: /host-logs
+              readOnly: true        # The agent must NEVER write to host logs.
+          resources:
+            requests:
+              cpu: "20m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+      volumes:
+        - name: host-logs
+          hostPath:
+            path: /var/log         # The node's log directory.
+            type: Directory

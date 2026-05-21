@@ -1,0 +1,30 @@
+# =============================================================================
+# Default values for the webapp chart.
+# These can be overridden with -f <file> or --set key=value at install time.
+# =============================================================================
+
+replicaCount: 2
+
+image:
+  repository: nginx
+  # If omitted, the chart falls back to .Chart.AppVersion ("1.27" in Chart.yaml).
+  tag: ""
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "200m"
+    memory: "128Mi"
+
+# Optional ConfigMap that injects a banner message as an env var into the
+# container. Disable it to see how conditional template rendering works.
+banner:
+  enabled: true
+  message: "Hello from the webapp chart (default values)"

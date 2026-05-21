@@ -1,0 +1,12 @@
+apiVersion: v2
+name: webapp
+description: A minimal, readable Helm chart used in the bootcamp Helm hands-on
+type: application
+
+# version: the version of THE CHART itself. Bump on every template change.
+version: 0.1.0
+
+# appVersion: the version of the APPLICATION the chart deploys.
+# Independent on purpose — you can release chart v0.3.0 that still deploys
+# nginx 1.27.
+appVersion: "1.27"

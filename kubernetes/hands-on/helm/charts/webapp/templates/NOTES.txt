@@ -1,0 +1,16 @@
+Thanks for installing {{ .Chart.Name }} (chart v{{ .Chart.Version }}, app v{{ .Chart.AppVersion }}).
+
+Release name:      {{ .Release.Name }}
+Release namespace: {{ .Release.Namespace }}
+Replicas:          {{ .Values.replicaCount }}
+Image:             {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+
+To reach the application locally, port-forward the Service:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "webapp.fullname" . }} 8080:{{ .Values.service.port }}
+
+Then open:  http://localhost:8080
+
+To see all revisions of this release:
+
+  helm history {{ .Release.Name }} -n {{ .Release.Namespace }}

@@ -1,0 +1,21 @@
+# =============================================================================
+# Prod environment overrides.
+# More replicas, more resources, banner disabled (no ConfigMap generated).
+# =============================================================================
+
+replicaCount: 3
+
+image:
+  repository: nginx
+  tag: "1.27"
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+
+banner:
+  enabled: false

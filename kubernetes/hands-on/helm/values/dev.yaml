@@ -1,0 +1,22 @@
+# =============================================================================
+# Dev environment overrides.
+# Small footprint, banner enabled so we can see ConfigMap rendering.
+# =============================================================================
+
+replicaCount: 1
+
+image:
+  repository: nginx
+  tag: "1.27"
+
+resources:
+  requests:
+    cpu: "25m"
+    memory: "32Mi"
+  limits:
+    cpu: "100m"
+    memory: "64Mi"
+
+banner:
+  enabled: true
+  message: "DEV environment — not for production traffic"

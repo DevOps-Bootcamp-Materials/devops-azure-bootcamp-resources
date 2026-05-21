@@ -1,0 +1,26 @@
+# Grafana dashboard provisioning
+#
+# This file tells Grafana where to look for dashboard JSON files on disk.
+# When Grafana starts (or every `updateIntervalSeconds`) it scans the
+# `path` below and imports any JSON it finds as a managed dashboard.
+#
+# This is the production-grade pattern: dashboards live as JSON in git,
+# Grafana picks them up automatically, no manual clicking required.
+#
+# In Part B of this hands-on you export your hand-built dashboard, drop the
+# JSON into ./grafana/dashboards/, restart Grafana, and watch it appear.
+
+apiVersion: 1
+
+providers:
+  - name: "course-dashboards"
+    orgId: 1
+    folder: "Course"
+    folderUid: "course"
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

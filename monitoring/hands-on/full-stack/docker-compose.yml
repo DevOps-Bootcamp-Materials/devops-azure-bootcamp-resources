@@ -26,8 +26,11 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      # Allow embedding (snapshots / iframe) so the share demo in Part B works
+      - GF_SECURITY_ALLOW_EMBEDDING=true
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     networks:
       - monitoring
@@ -41,6 +44,27 @@ services:
     container_name: node-exporter
     ports:
       - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    networks:
+      - monitoring
+
+  # Second Node Exporter — same host underneath, but Prometheus sees it as a
+  # distinct target with its own `instance` label. We use it in Part B of the
+  # README to make the `$instance` dashboard variable have more than one value
+  # to choose from. Part A also benefits: the community Node Exporter Full
+  # dashboard you import already understands an instance dropdown.
+  node-exporter-b:
+    image: prom/node-exporter:v1.7.0
+    container_name: node-exporter-b
+    ports:
+      - "9101:9100"
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro

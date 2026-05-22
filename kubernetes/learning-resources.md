@@ -81,6 +81,76 @@ A curated selection of resources ordered by type and level. Each entry explains 
 
 ---
 
+## Real-World Enterprise Use Cases
+
+Knowing `kubectl` is not the same as knowing how Kubernetes is operated in a real company. The resources in this section show **what problems Kubernetes actually solves at scale, what architectures are built around it, and what numbers a business cares about** (release frequency, page-load time, cost per cluster, time-to-onboard a new service). Use them to connect the technology you are learning with the way you will encounter it in your first job.
+
+### [CNCF Case Studies](https://www.cncf.io/case-studies/)
+
+**Why use it:** The canonical source of "who runs Kubernetes in production, and why." The Cloud Native Computing Foundation curates hundreds of case studies from end-user organizations (Adobe, Adidas, Booking.com, CERN, Spotify, Pinterest, Zalando, OVHcloud and many more). Each one follows the same structure: business challenge, cloud-native solution, and **quantifiable outcomes** (number of pods, release frequency, cost reduction, latency improvement). It is the best way to build a mental catalogue of "what Kubernetes is used for" beyond the toy examples.
+
+**When to use it:** Whenever you read about a new concept and want to see it applied for real — search the portal by company or by technology (Argo, Cilium, Prometheus…). Also useful when preparing for interviews: being able to cite "Adidas went from a 4-week release cycle to several deploys a day after moving to Kubernetes" carries far more weight than reciting definitions.
+
+**Recommended starting point:** the [Adidas case study](https://www.cncf.io/case-study/adidas/) — a clean example of bureaucracy and slow VMs as the *real* problem, with containerization as the answer.
+
+---
+
+### [Keynote: How Spotify Accidentally Deleted All its Kube Clusters with No User Impact — David Xia, KubeCon Europe 2019](https://www.youtube.com/watch?v=ix0Tw8uinWs)
+
+**Why use it:** A 25-minute keynote that does more for your operational maturity than most blog posts. David Xia (Spotify infrastructure engineer) walks through how Spotify deleted its production Kubernetes clusters by mistake — and why nobody noticed. The talk is a masterclass on the principles that make a cluster *recoverable*: declarative infrastructure (Terraform), regular backup/restore exercises (Ark/Velero), and running many smaller clusters instead of one big one. It also reframes "incidents" as a normal part of operating distributed systems rather than as failures to be hidden.
+
+**When to use it:** Right after you finish the Kubernetes module. By that point you know what a cluster *is*; this talk shows you what it means to *operate* one in production with hundreds of services.
+
+---
+
+### [The Journey of Adidas to a Global Kubernetes Rollout — Daniel Eichten & Oliver Thylmann](https://www.youtube.com/watch?v=dwDhHt1Llb8)
+
+**Why use it:** The companion video to the Adidas CNCF case study. Daniel Eichten (platform engineer at Adidas) and Oliver Thylmann (Giant Swarm) tell the story behind the numbers: how a retail company with a strong non-tech culture rolled out Kubernetes globally in six months, what they outsourced (cluster operations) and what they kept in-house (the developer-facing platform), and the cultural friction they hit on the way. It is one of the cleanest end-to-end "from monolith to cloud-native platform" stories on YouTube.
+
+**When to use it:** When you want to understand **platform engineering** as a discipline — not as "I install Kubernetes," but as "I build the paved road my developers use to ship." Watch it together with the Adidas case study above; one gives you the numbers, the other gives you the story.
+
+---
+
+## Engineering Blogs Worth Following
+
+Tech blogs from companies that run Kubernetes at scale are some of the best free learning material there is. Pick one or two and add them to your RSS reader or LinkedIn feed.
+
+### [Spotify Engineering](https://engineering.atspotify.com/)
+
+**Why use it:** Spotify is the company behind [Backstage](https://backstage.io/), the de facto open-source standard for internal developer portals — and most of the thinking that led to Backstage was published here first. The blog covers fleet management of clusters, developer-experience tooling, golden paths and platform-as-product thinking. Less raw infrastructure than Pinterest, more "how do we make 1000+ engineers productive on top of Kubernetes."
+
+**When to use it:** When you want to understand the **platform** angle: what an internal developer platform looks like, what services it exposes, and how a large engineering org structures the contract between platform team and product teams.
+
+---
+
+### [Pinterest Engineering](https://medium.com/pinterest-engineering)
+
+**Why use it:** Pinterest publishes some of the most detailed posts on the *scaling* edges of Kubernetes — cluster federation, controlling pod churn, etcd limits, autoscaler runaways, multi-tenant fairness. Their "Scaling Kubernetes with Assurance" series is particularly valuable: it documents real incidents (a single pod-creation spike that triggered 900 nodes coming up) and the controls they built to prevent recurrence.
+
+**When to use it:** When the basics start feeling small and you want to see what happens to Kubernetes at thousands of nodes. Good preparation for senior SRE/platform roles.
+
+---
+
+### [Airbnb Tech Blog](https://medium.com/airbnb-engineering)
+
+**Why use it:** Airbnb's blog mixes infrastructure with data and ML platform content, which mirrors the way most companies actually use Kubernetes today (as the substrate underneath data pipelines, ML training, and online services — not just stateless web apps). Good for seeing how the cluster is one layer of a much wider platform.
+
+**When to use it:** When you want a more *product-shaped* view of platform engineering — how infrastructure decisions are justified in terms of developer velocity and business outcomes, not just technical elegance.
+
+---
+
+## Patterns and Reference Architectures
+
+### [Kubernetes Patterns — Bilgin Ibryam & Roland Huß (O'Reilly)](https://developers.redhat.com/e-books/kubernetes-patterns)
+
+**Why use it:** After you have seen enough real-world case studies, the same shapes start to repeat: sidecar containers for cross-cutting concerns, init containers for setup, controllers/operators for domain logic, leader election for singletons, predictable demands for the scheduler. This book — by two Red Hat engineers — catalogues those recurring shapes as named **patterns**, with the problem each one solves and a Kubernetes-native solution. It is the closest thing to a "Design Patterns" book for cloud-native systems.
+
+**Free download:** Red Hat Developer makes the PDF available for free with a free Red Hat Developer account (no payment required). The same book is also on [O'Reilly](https://www.oreilly.com/library/view/kubernetes-patterns-2nd/9781098131678/) for paid access.
+
+**When to use it:** After your first hands-on experience with Deployments, Services and ConfigMaps. The book stops being abstract once you have already wrestled with these primitives, and it pays off the most when you are about to design (not just deploy) your first non-trivial workload.
+
+---
+
 ## Local Practice Environments
 
 ### [minikube](https://minikube.sigs.k8s.io/docs/start/)

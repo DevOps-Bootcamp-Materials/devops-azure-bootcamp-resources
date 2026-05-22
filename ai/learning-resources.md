@@ -94,6 +94,18 @@ The focus of this list is practical: how to use AI tools effectively as a DevOps
 
 ## Blogs and Written References
 
+The blogs below are the backbone of the W16.7 lesson — *AI-assisted DevOps: responsible use, where it helps, where it bites*. The premise of the lesson is that the honest answer to "how should I use AI at work?" is not in a vendor announcement or a hype thread, but in the public notebooks of senior engineers who have integrated these tools into real production work and written carefully about what changed.
+
+Three things to read for as you go through them:
+
+- **Where it helps.** Which specific tasks the author now delegates to an LLM or an agent, and why those tasks fit. This is the part the bootcamp's hands-on (W16.8, W16.9) tries to reproduce in DevOps contexts.
+- **Where it bites.** The failure modes the author has observed — context loss, hallucinated APIs, review-capacity bottlenecks, design erosion over time, prompt injection on logs and tickets. The shape of the failure matters more than the existence of it.
+- **What stays the same.** What the engineer still does themselves, and what stays under human review. This is the line that separates "AI in the workflow" from "AI replaces the workflow", and it is the most useful thing to copy.
+
+The first two entries (Simon Willison, Hamel Husain) are general-purpose anchors. The rest are first-person practitioner accounts — senior engineers, founders, and Thoughtworks contributors writing about their own daily use of AI tools on real engineering problems.
+
+---
+
 ### [Simon Willison's Blog](https://simonwillison.net/)
 
 **Why use it:** Simon Willison (co-creator of Django) writes the most consistently useful practical blog on LLMs for developers. He covers new model releases, prompting techniques, tool integrations, and security considerations (prompt injection, LLM-based attacks) with the pragmatism of a working engineer rather than the hype of marketing content. His posts on using LLMs for coding tasks and his "TIL" (Today I Learned) series are particularly worth following.
@@ -107,6 +119,70 @@ The focus of this list is practical: how to use AI tools effectively as a DevOps
 **Why use it:** Hamel focuses on the engineering side of LLM deployment — evaluation, fine-tuning, and building reliable AI-powered systems. His writing on LLM evaluation (how do you know your prompts are working?) is the best practical resource on that specific topic. For a DevOps engineer building AI-assisted automation, the ability to evaluate outputs systematically is what separates a reliable tool from an impressive demo.
 
 **When to use it:** When you move beyond using AI interactively and start building automated workflows. His post on "Your AI product needs evals" is essential reading before deploying any LLM-based automation.
+
+---
+
+### [Mitchell Hashimoto — mitchellh.com/writing](https://mitchellh.com/writing)
+
+**Why use it:** Mitchell Hashimoto (HashiCorp co-founder, creator of Vagrant and Terraform, and now Ghostty) writes from the perspective of someone who built the tooling the DevOps profession runs on. His post "My AI Adoption Journey" is one of the more honest descriptions of how a senior infrastructure engineer integrated AI agents into their workflow — what worked, what did not, and how the workflow changed over months rather than days. Because his domain is exactly the one this bootcamp targets (infrastructure as code, low-level tooling), his lessons transfer cleanly.
+
+**When to use it:** When you want a credible account of AI adoption from someone whose previous output is well-documented. Read his AI posts alongside his earlier writing on Terraform and Ghostty to see how the same engineer approaches problems with and without AI assistance.
+
+---
+
+### [Armin Ronacher — lucumr.pocoo.org](https://lucumr.pocoo.org/)
+
+**Why use it:** Armin Ronacher (creator of Flask, CTO at Sentry) posts frequently and specifically on what AI changes in day-to-day engineering. Posts such as "AI And The Ship of Theseus" (what happens when a library gets rewritten with AI), "The Final Bottleneck" (AI speeds up writing code, but review capacity is now the limit), and "Pushing Local Models With Focus And Polish" treat AI as a tool to be measured, not a movement to be advocated for. The angle is consistently the angle a DevOps engineer cares about: throughput, reliability, accountability.
+
+**When to use it:** When you want frequent, specific posts on practical AI use from someone running a production engineering team. Armin updates often, and the posts are short enough to read over coffee.
+
+---
+
+### [David Crawshaw — crawshaw.io](https://crawshaw.io/blog)
+
+**Why use it:** David Crawshaw (Tailscale co-founder, ex-Google) writes the most detailed first-person engineering accounts of programming with LLMs and agents. "How I program with LLMs" and "How I program with Agents" are widely cited because they describe an actual workflow — what tasks to delegate, what to write yourself, what guardrails to put in — rather than a marketing pitch. The follow-ups ("Eight more months of agents", "The agent principal-agent problem") track how that workflow has evolved as the tools changed.
+
+**When to use it:** When you want to compare your own AI workflow against the workflow of an engineer who reasons carefully and writes precisely about it. Read both "How I program with LLMs" and "How I program with Agents" in order — together they are about an hour and worth it.
+
+---
+
+### [Exploring Generative AI — Birgitta Böckeler and colleagues, martinfowler.com](https://martinfowler.com/articles/exploring-gen-ai.html)
+
+**Why use it:** A long-running, episodic article series on martinfowler.com led by Birgitta Böckeler (Thoughtworks) with contributors including Kief Morris, Erik Doernenburg, and others. Unlike most AI commentary, each entry is a small, specific observation from real engagement work — coding assistant reliability, TDD with AI, codebase onboarding, multi-file edits, tech stack migration with agents, supply chain implications. The cumulative effect is a calibrated picture of where AI in software development actually helps and where it does not.
+
+**When to use it:** When you want practitioner perspectives that are neither hype nor reflexive scepticism. The series is searchable by topic — go to the specific memo when you face a specific question (for example, the memos on context engineering when you start building prompts for agents).
+
+---
+
+### [Kent Beck — Tidy First? on Substack](https://tidyfirst.substack.com/)
+
+**Why use it:** Kent Beck (Extreme Programming, Test-Driven Development) writes about what he calls "augmented coding" — programming with AI as a collaborator. The posts "Augmented Coding: Beyond the Vibes", "Genie Tarpit", and "Genie Lessons: Nobody Wants Agents" are valuable specifically because Beck has spent four decades thinking about software design practices and now applies that lens to AI-assisted work. His scepticism is technical, not cultural: when he says a workflow degrades over time, he can name the design property that breaks.
+
+**When to use it:** When you want to integrate AI into your engineering practice without losing the design discipline that good engineering depends on. Particularly relevant if you are introducing AI tools into a team that already cares about clean code, testability, and refactoring.
+
+---
+
+### [Sean Goedecke — seangoedecke.com](https://www.seangoedecke.com/)
+
+**Why use it:** Sean Goedecke writes as a staff engineer in an industry job, which makes the perspective unusually grounded — not a founder, not a researcher, just someone shipping software with AI in the loop. The post "How I use LLMs as a staff engineer" is a concrete catalogue of the tasks he delegates to LLMs and the tasks he keeps for himself, with the reasoning behind each. The companion posts on prompts as technical debt and on AI making weak engineers less harmful are the kind of honest, opinionated industry writing that is hard to find elsewhere.
+
+**When to use it:** When you want a "what does this actually look like at work" view, written by someone whose job constraints are similar to yours. Pair it with David Crawshaw's posts for a senior-engineer-to-staff-engineer pair of perspectives.
+
+---
+
+### [Geoffrey Litt — geoffreylitt.com](https://www.geoffreylitt.com/)
+
+**Why use it:** Geoffrey Litt (researcher, ex-Ink & Switch) writes about AI in software from the angle of tool design rather than productivity hacks. Posts like "Enough AI copilots! We need AI HUDs", "AI as teleportation", and "Code like a surgeon" reframe how the integration should work — what shape the UI should take, what the human should still be doing, what stays the same and what changes. For a DevOps engineer thinking about *building* internal AI-assisted tooling (not just consuming the public products), this angle is the one that matters.
+
+**When to use it:** When you are designing the AI part of a workflow — a Slack bot for log triage, an agent that opens PRs, a runbook assistant. Litt's framing helps you avoid the most common shape mistake (a chat box that does not fit the task).
+
+---
+
+### [Thorsten Ball — Register Spill (Substack)](https://registerspill.thorstenball.com/)
+
+**Why use it:** Thorsten Ball (Zed editor, previously Sourcegraph) writes a weekly newsletter, "Joy & Curiosity", with a recurring section on what he is learning about AI-assisted coding while building one of the editors that integrates it most aggressively. The signal-to-noise is high: he ships AI features inside Zed and reports back on what holds up. Worth subscribing as a steady drip rather than reading one-off.
+
+**When to use it:** Weekly. The newsletter format makes it easy to keep a pulse on what is shifting in AI-assisted coding without committing to a deep dive every time.
 
 ---
 

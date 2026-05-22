@@ -1,0 +1,122 @@
+services:
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    networks:
+      - monitoring
+
+  # Grafana with Unified Alerting enabled (the default since 9.0).
+  # SMTP is wired to MailDev so the email contact point works out of the box.
+  # The provisioning volumes load datasources and (once we write them) the
+  # alert rules, contact points, notification policies and mute timings.
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      # Unified alerting is the default in Grafana 9+; we set it explicitly so
+      # this is obvious to a student reading the compose.
+      - GF_UNIFIED_ALERTING_ENABLED=true
+      - GF_ALERTING_ENABLED=false
+      # SMTP wired to MailDev — no auth, no TLS. For real Gmail, swap to
+      # smtp.gmail.com:587 with an App Password (see README "Going real").
+      - GF_SMTP_ENABLED=true
+      - GF_SMTP_HOST=maildev:1025
+      - GF_SMTP_FROM_ADDRESS=grafana@local.test
+      - GF_SMTP_FROM_NAME=Grafana Alerting
+      - GF_SMTP_SKIP_VERIFY=true
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+      - maildev
+
+  # MailDev: SMTP catch-all server. Accepts every message on :1025 and shows
+  # it rendered (HTML + plain text + headers) at http://localhost:1080.
+  # Nothing leaves this container.
+  maildev:
+    image: maildev/maildev:2.1.0
+    container_name: maildev
+    ports:
+      - "1080:1080"   # web UI
+      - "1025:1025"   # SMTP
+    networks:
+      - monitoring
+
+  # Webhook logger: prints every HTTP POST body to its stdout.
+  # We use it as a fake Slack endpoint — Grafana's Slack contact point posts
+  # a Slack-shaped JSON envelope to whatever URL you give it, and this
+  # container happily logs it.
+  webhook-logger:
+    image: mendhak/http-https-echo:34
+    container_name: webhook-logger
+    ports:
+      - "9000:9000"
+    environment:
+      - HTTP_PORT=9000
+    networks:
+      - monitoring
+
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: node-exporter
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    networks:
+      - monitoring
+
+  # Demo app exposing realistic HTTP metrics:
+  #   http_requests_total{handler, code}
+  #   http_request_duration_seconds_bucket{handler}
+  demo-app:
+    image: quay.io/brancz/prometheus-example-app:v0.3.0
+    container_name: demo-app
+    ports:
+      - "8080:8080"
+    networks:
+      - monitoring
+
+  # On-demand CPU stressor. Stopped by default (profile: stress).
+  # Start it to fire HighCpuUtilization; stop it to let the alert resolve.
+  #
+  # First time:   docker compose --profile stress up -d cpu-stressor
+  # Re-start:     docker compose start cpu-stressor
+  # Stop:         docker compose stop cpu-stressor
+  cpu-stressor:
+    image: polinux/stress-ng
+    container_name: cpu-stressor
+    profiles: ["stress"]
+    command: ["stress-ng", "--cpu", "0", "--timeout", "600s"]
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:

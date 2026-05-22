@@ -1,0 +1,74 @@
+# Grafana contact points — provisioning format.
+#
+# A contact point is "how do I send a notification": an email address list,
+# a Slack webhook, a PagerDuty integration key, a webhook, etc.
+# Notification policies (see notification-policies.yaml) route firing alerts
+# to one of these contact points.
+#
+# Mock setup (default):
+#   - oncall-email   -> MailDev (no auth, no TLS); inbox at http://localhost:1080
+#   - platform-slack -> webhook-logger /slack/platform endpoint
+#   - app-slack      -> webhook-logger /slack/app endpoint
+#
+# To go real:
+#   - Replace platform-slack and app-slack `url:` with real Slack incoming
+#     webhook URLs (https://hooks.slack.com/services/T.../B.../...).
+#   - The MailDev SMTP relay is configured at the Grafana server level via
+#     GF_SMTP_* env vars in docker-compose.yml. To send through Gmail,
+#     swap those env vars (smtp.gmail.com:587, your address, App Password).
+
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: oncall-email
+    receivers:
+      - uid: oncall-email-receiver
+        type: email
+        settings:
+          # Recipient list. The SMTP relay itself is configured server-wide
+          # (GF_SMTP_* env vars). Grafana renders the email with its built-in
+          # template; override `message` / `subject` here to customise.
+          addresses: oncall@local.test
+          singleEmail: false
+          subject: '[{{ .Status | toUpper }}] {{ index .GroupLabels "alertname" }}'
+        disableResolveMessage: false
+
+  - orgId: 1
+    name: platform-slack
+    receivers:
+      - uid: platform-slack-receiver
+        type: slack
+        settings:
+          # Real Slack: replace with https://hooks.slack.com/services/T.../B.../...
+          url: http://webhook-logger:9000/slack/platform
+          recipient: '#platform-alerts'
+          title: '[{{ .Status | toUpper }}] {{ index .GroupLabels "alertname" }} on {{ index .CommonLabels "instance" }}'
+          text: |
+            {{ range .Alerts -}}
+            *Summary:* {{ .Annotations.summary }}
+            *Description:* {{ .Annotations.description }}
+            *Runbook:* {{ .Annotations.runbook_url }}
+            *Labels:* {{ range .Labels.SortedPairs }}`{{ .Name }}={{ .Value }}` {{ end }}
+            {{ end -}}
+        disableResolveMessage: false
+
+  - orgId: 1
+    name: app-slack
+    receivers:
+      - uid: app-slack-receiver
+        type: slack
+        settings:
+          url: http://webhook-logger:9000/slack/app
+          recipient: '#app-alerts'
+          # The two app rules carry different labels (`method` vs `handler`),
+          # so the title falls back through both. Notification templates use
+          # Go text/template, where a missing map key renders as "<no value>".
+          title: '[{{ .Status | toUpper }}] {{ index .GroupLabels "alertname" }}'
+          text: |
+            {{ range .Alerts -}}
+            *Summary:* {{ .Annotations.summary }}
+            *Description:* {{ .Annotations.description }}
+            *Runbook:* {{ .Annotations.runbook_url }}
+            {{ end -}}
+        disableResolveMessage: false

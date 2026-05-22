@@ -1,0 +1,27 @@
+# prometheus.yml — Grafana-managed alerts hands-on.
+#
+# Note: there are NO `rule_files` here and NO `alerting:` block pointing at
+# an Alertmanager. In this hands-on, Grafana is the source of truth for
+# alert rules: it queries Prometheus as a datasource, evaluates the rules
+# itself, and dispatches notifications through its own contact points.
+# Compare with the alertmanager-deep-dive hands-on, where the same alerts
+# lived in `rules/*.yml` and were dispatched by Alertmanager.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: local-dev
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  - job_name: "node-exporter"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  - job_name: "demo"
+    static_configs:
+      - targets: ["demo-app:8080"]

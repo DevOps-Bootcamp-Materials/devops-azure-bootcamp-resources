@@ -1,0 +1,27 @@
+# Mute timings — recurring time windows during which matched policies
+# do NOT send notifications. The Grafana equivalent of Alertmanager's
+# `time_intervals:` config.
+#
+# Use cases: "do not page during planned maintenance every Saturday 22:00",
+# "no warning alerts on Sundays", "suppress noisy app alerts during the
+# nightly batch window".
+#
+# IMPORTANT: mute timings only affect notification dispatch. The alert
+# rule still evaluates, still fires, and still appears in the Alerts list
+# of the Alerting UI — it just doesn't notify any contact point while
+# the timing matches.
+
+apiVersion: 1
+
+muteTimes:
+  - orgId: 1
+    name: weekend-nights
+    time_intervals:
+      - times:
+          - start_time: '20:00'
+            end_time: '23:59'
+        weekdays: ['saturday', 'sunday']
+      - times:
+          - start_time: '00:00'
+            end_time: '08:00'
+        weekdays: ['saturday', 'sunday', 'monday']

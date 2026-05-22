@@ -1,0 +1,246 @@
+# Grafana-managed alert rules — provisioning format.
+#
+# A rule is a directed graph of "data nodes":
+#   - One or more datasource queries (refId A, B, ...)
+#   - One or more expressions (Reduce, Math, Threshold, Classic) on the
+#     internal __expr__ datasource
+# The `condition:` field names the refId whose result is interpreted as
+# the firing/not-firing boolean.
+#
+# The two rules below mirror what we wrote as Prometheus `alert:` rules in
+# the alertmanager-deep-dive hands-on (rules/host.yml, rules/app.yml).
+# Same PromQL, same threshold, same labels — only the dispatcher changed.
+
+apiVersion: 1
+
+groups:
+  # ----------------------------------------------------------------------
+  # Host alerts (platform team)
+  # ----------------------------------------------------------------------
+  - orgId: 1
+    name: host
+    folder: monitoring
+    interval: 1m
+    rules:
+      - uid: high-cpu-utilization
+        title: HighCpuUtilization
+        condition: C
+        data:
+          # A: the PromQL query, evaluated as an instant query
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus-main
+            model:
+              refId: A
+              instant: true
+              expr: '100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100)'
+
+          # C: threshold expression — fires when A > 80
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [80]
+                  operator:
+                    type: and
+                  query:
+                    params: []
+                  reducer:
+                    type: last
+                    params: []
+                  type: query
+
+        # noDataState=OK: rate() over [1m] returns nothing during the first
+        # ~30s after a fresh `docker compose up`. With noDataState=NoData we
+        # would fire a spurious DatasourceNoData alert on every startup. The
+        # genuine "host is unreachable" case is already covered by TargetDown
+        # (below), which uses noDataState=Alerting on the `up` metric.
+        noDataState: OK
+        execErrState: Error
+        for: 30s
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: 'High CPU on {{ $labels.instance }}'
+          description: 'CPU utilization is high (>80% for 30s) on {{ $labels.instance }}.'
+          runbook_url: 'https://runbooks.example.com/high-cpu'
+        isPaused: false
+
+      - uid: target-down
+        title: TargetDown
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus-main
+            model:
+              refId: A
+              instant: true
+              expr: 'up'
+
+          # C: fires when A == 0 (i.e. the target is down).
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+                  operator:
+                    type: and
+                  query:
+                    params: []
+                  reducer:
+                    type: last
+                    params: []
+                  type: query
+
+        noDataState: Alerting   # if Prometheus stops returning `up`, alert
+        execErrState: Error
+        for: 30s
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: 'Target {{ $labels.job }} / {{ $labels.instance }} is down'
+          description: 'Prometheus cannot scrape {{ $labels.instance }} (job={{ $labels.job }}). Unreachable for more than 30 seconds.'
+          runbook_url: 'https://runbooks.example.com/target-down'
+        isPaused: false
+
+  # ----------------------------------------------------------------------
+  # Application alerts (app team)
+  # ----------------------------------------------------------------------
+  - orgId: 1
+    name: application
+    folder: monitoring
+    interval: 1m
+    rules:
+      - uid: app-high-error-rate
+        title: AppHighErrorRate
+        condition: C
+        data:
+          # Note: the demo app (quay.io/brancz/prometheus-example-app) exposes
+          # http_requests_total with labels {code, method} only — there is no
+          # `handler` label on this counter. Grouping by `method` keeps the
+          # rule labels non-empty so the contact point title and annotations
+          # render with a real value. The latency rule below groups by
+          # `handler` because the *bucket* metric does carry that label.
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus-main
+            model:
+              refId: A
+              instant: true
+              expr: |
+                100 * (
+                  sum by (method) (rate(http_requests_total{job="demo", code!~"2.."}[1m]))
+                  /
+                  sum by (method) (rate(http_requests_total{job="demo"}[1m]))
+                )
+
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [5]
+                  operator:
+                    type: and
+                  query:
+                    params: []
+                  reducer:
+                    type: last
+                    params: []
+                  type: query
+
+        noDataState: OK   # no traffic => no series => OK, not Alerting
+        execErrState: Error
+        for: 30s
+        labels:
+          severity: critical
+          team: app
+        annotations:
+          summary: 'High error rate on method={{ $labels.method }}'
+          description: 'Error rate for {{ $labels.method }} requests is above 5% for 30s.'
+          runbook_url: 'https://runbooks.example.com/app-error-rate'
+        isPaused: false
+
+      - uid: app-high-request-latency
+        title: AppHighRequestLatency
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus-main
+            model:
+              refId: A
+              instant: true
+              expr: |
+                histogram_quantile(
+                  0.95,
+                  sum by (handler, le) (rate(http_request_duration_seconds_bucket{job="demo"}[1m]))
+                )
+
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0.5]
+                  operator:
+                    type: and
+                  query:
+                    params: []
+                  reducer:
+                    type: last
+                    params: []
+                  type: query
+
+        noDataState: OK
+        execErrState: Error
+        for: 30s
+        labels:
+          severity: warning
+          team: app
+        annotations:
+          summary: 'High p95 latency on {{ $labels.handler }}'
+          description: 'p95 latency for {{ $labels.handler }} is above 500ms for 30s.'
+          runbook_url: 'https://runbooks.example.com/app-latency'
+        isPaused: false

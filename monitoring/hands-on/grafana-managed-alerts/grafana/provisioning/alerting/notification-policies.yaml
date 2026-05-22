@@ -1,0 +1,54 @@
+# Notification policies — Grafana's routing tree.
+#
+# Conceptually identical to Alertmanager's `route:` block. Top-to-bottom
+# evaluation, first-match-wins, `continue: true` lets evaluation fall through
+# to sibling routes after a match.
+#
+# Root policy: every alert that does not match a child route lands at
+#   `oncall-email` (the catch-all default).
+# Child policies:
+#   1) severity=critical  -> oncall-email AND any team-specific channel
+#                            (continue: true so the team route below also
+#                             gets a copy). group_wait: 0s for instant page.
+#   2) team=platform      -> platform-slack, grouped by alertname+instance
+#   3) team=app           -> app-slack, grouped by alertname+handler
+#
+# Mute timing `weekend-nights` is attached to the warning team policies so
+# warnings stay quiet outside business hours. Criticals are never muted.
+
+apiVersion: 1
+
+policies:
+  - orgId: 1
+    receiver: oncall-email
+    group_by: ['grafana_folder', 'alertname']
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+
+    routes:
+      - receiver: oncall-email
+        group_by: ['alertname', 'instance']
+        object_matchers:
+          - ['severity', '=', 'critical']
+        group_wait: 0s
+        continue: true
+
+      - receiver: platform-slack
+        group_by: ['alertname', 'instance']
+        object_matchers:
+          - ['team', '=', 'platform']
+        mute_time_intervals:
+          - weekend-nights
+
+      - receiver: app-slack
+        # The two app rules group by different labels: AppHighErrorRate by
+        # `method` (the label present on http_requests_total), AppHighRequestLatency
+        # by `handler` (the label present on the histogram bucket). Listing both
+        # in group_by means an alert is grouped by whichever of the two it has,
+        # without breaking the other.
+        group_by: ['alertname', 'method', 'handler']
+        object_matchers:
+          - ['team', '=', 'app']
+        mute_time_intervals:
+          - weekend-nights

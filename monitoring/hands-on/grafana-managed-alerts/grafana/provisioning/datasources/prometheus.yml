@@ -1,0 +1,16 @@
+# Grafana datasource provisioning.
+# Loaded automatically when Grafana starts. The Prometheus datasource is
+# available immediately and the alert rules reference it by `uid`.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus-main
+    url: http://prometheus:9090
+    access: proxy
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: "15s"

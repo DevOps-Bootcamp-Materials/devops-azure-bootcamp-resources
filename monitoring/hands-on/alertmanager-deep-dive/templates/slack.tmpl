@@ -1,0 +1,14 @@
+{{/* Slack message templates used by platform-slack and app-slack receivers. */}}
+
+{{ define "slack.title" }}
+[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }} ({{ .CommonLabels.severity }})
+{{ end }}
+
+{{ define "slack.text" }}
+{{ range .Alerts -}}
+*Summary:* {{ .Annotations.summary }}
+*Description:* {{ .Annotations.description }}
+{{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+*Labels:* {{ range .Labels.SortedPairs }}`{{ .Name }}={{ .Value }}` {{ end }}
+{{ end }}
+{{ end }}

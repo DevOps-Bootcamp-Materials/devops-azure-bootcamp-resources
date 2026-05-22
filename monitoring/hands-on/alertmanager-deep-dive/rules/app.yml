@@ -1,0 +1,37 @@
+# Application-level alerts (demo app). Owned by the app team.
+# Metrics from quay.io/brancz/prometheus-example-app:
+#   http_requests_total{handler, code}
+#   http_request_duration_seconds_bucket{handler}
+groups:
+  - name: application
+    rules:
+      - alert: AppHighErrorRate
+        expr: |
+          100 * (
+            sum by (handler) (rate(http_requests_total{job="demo", code!~"2.."}[1m]))
+            /
+            sum by (handler) (rate(http_requests_total{job="demo"}[1m]))
+          ) > 5
+        for: 30s
+        labels:
+          severity: critical
+          team: app
+        annotations:
+          summary: "High error rate on {{ $labels.handler }}"
+          description: "Error rate for handler {{ $labels.handler }} is {{ printf \"%.1f\" $value }}% (>5%)."
+          runbook_url: "https://runbooks.example.com/app-error-rate"
+
+      - alert: AppHighRequestLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (handler, le) (rate(http_request_duration_seconds_bucket{job="demo"}[1m]))
+          ) > 0.5
+        for: 30s
+        labels:
+          severity: warning
+          team: app
+        annotations:
+          summary: "High p95 latency on {{ $labels.handler }}"
+          description: "p95 latency for {{ $labels.handler }} is {{ printf \"%.3f\" $value }}s (>500ms)."
+          runbook_url: "https://runbooks.example.com/app-latency"

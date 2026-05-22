@@ -1,0 +1,116 @@
+# Alertmanager — final configuration for the alertmanager-deep-dive hands-on.
+#
+# The README walks through this file section by section. If you are following
+# the bootcamp hands-on, edit and reload after each block:
+#   curl -X POST http://localhost:9093/-/reload
+#
+# Mock setup (default): Slack is mocked by pointing slack_configs.api_url at
+# the webhook-logger container; email goes to the MailDev container.
+# To switch to real Slack: replace the slack api_url with a real
+# https://hooks.slack.com/services/... incoming webhook URL.
+# To switch to real Gmail: replace the smtp_* global settings with smtp.gmail.com
+# settings and a Gmail App Password — see the README "Going real" section.
+
+global:
+  resolve_timeout: 5m
+
+  # SMTP — points at MailDev (no auth, no TLS). For real Gmail, use:
+  #   smtp_smarthost: smtp.gmail.com:587
+  #   smtp_auth_username: your-address@gmail.com
+  #   smtp_auth_password: <16-char app password>
+  #   smtp_require_tls: true
+  smtp_smarthost: "maildev:1025"
+  smtp_from: "alertmanager@local.test"
+  smtp_require_tls: false
+
+  # Mock Slack endpoint. For real Slack, replace with:
+  #   slack_api_url: https://hooks.slack.com/services/T.../B.../...
+  slack_api_url: "http://webhook-logger:9000/slack"
+
+templates:
+  - "/etc/alertmanager/templates/*.tmpl"
+
+# ----------------------------------------------------------------------------
+# Routing tree
+# ----------------------------------------------------------------------------
+# The root receiver is the catch-all; child routes refine by label.
+# Order matters: routes are evaluated top to bottom. The first match wins,
+# unless a route has `continue: true` — in which case evaluation also falls
+# through to siblings.
+route:
+  receiver: default-webhook
+  group_by: ["alertname"]
+  group_wait: 10s          # how long to buffer the first alert of a new group
+  group_interval: 30s      # how long to wait before sending new alerts of an existing group
+  repeat_interval: 5m      # how often to re-send a still-firing alert
+  routes:
+    # 1) Critical alerts ALWAYS page the on-call inbox, regardless of team.
+    #    continue: true means we also keep evaluating the routes below, so the
+    #    team-specific Slack channel also gets a copy.
+    - matchers:
+        - severity = "critical"
+      receiver: oncall-email
+      group_wait: 0s        # critical fires immediately, no buffering
+      continue: true
+
+    # 2) Platform team — own Slack channel, grouped per instance (so noise
+    #    from one host doesn't mix with another).
+    - matchers:
+        - team = "platform"
+      receiver: platform-slack
+      group_by: ["alertname", "instance"]
+
+    # 3) App team — own Slack channel, grouped per handler.
+    - matchers:
+        - team = "app"
+      receiver: app-slack
+      group_by: ["alertname", "handler"]
+
+# ----------------------------------------------------------------------------
+# Inhibition rules
+# ----------------------------------------------------------------------------
+# When TargetDown is firing for an instance, suppress every other warning/
+# critical alert from the same instance. Reason: if the target is unreachable,
+# any "high CPU" or "high latency" alert from it is either stale or
+# meaningless until the instance is back.
+inhibit_rules:
+  - source_matchers:
+      - alertname = "TargetDown"
+    target_matchers:
+      - severity =~ "warning|critical"
+    equal: ["instance"]
+
+# ----------------------------------------------------------------------------
+# Receivers
+# ----------------------------------------------------------------------------
+receivers:
+  # Catch-all — nothing routed should reach here in the final config, but it
+  # is the safety net.
+  - name: default-webhook
+    webhook_configs:
+      - url: "http://webhook-logger:9000/default"
+        send_resolved: true
+
+  # On-call email (MailDev locally; replace globals + 'to' for real Gmail).
+  - name: oncall-email
+    email_configs:
+      - to: "oncall@local.test"
+        send_resolved: true
+        headers:
+          Subject: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} ({{ .CommonLabels.severity }})'
+
+  # Platform team Slack (mocked via webhook-logger).
+  - name: platform-slack
+    slack_configs:
+      - channel: "#platform-alerts"
+        send_resolved: true
+        title: '{{ template "slack.title" . }}'
+        text: '{{ template "slack.text" . }}'
+
+  # App team Slack (mocked via webhook-logger).
+  - name: app-slack
+    slack_configs:
+      - channel: "#app-alerts"
+        send_resolved: true
+        title: '{{ template "slack.title" . }}'
+        text: '{{ template "slack.text" . }}'

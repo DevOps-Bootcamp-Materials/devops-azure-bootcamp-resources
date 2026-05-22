@@ -1,0 +1,25 @@
+# Host-level alerts (Node Exporter). Owned by the platform team.
+groups:
+  - name: host
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 30s
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Target {{ $labels.job }} / {{ $labels.instance }} is down"
+          description: "Prometheus cannot scrape {{ $labels.instance }} (job={{ $labels.job }}). Unreachable for more than 30 seconds."
+          runbook_url: "https://runbooks.example.com/target-down"
+
+      - alert: HighCpuUtilization
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100) > 80
+        for: 30s
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High CPU on {{ $labels.instance }}"
+          description: "CPU utilization is {{ printf \"%.1f\" $value }}% on {{ $labels.instance }} (>80% for 30s)."
+          runbook_url: "https://runbooks.example.com/high-cpu"

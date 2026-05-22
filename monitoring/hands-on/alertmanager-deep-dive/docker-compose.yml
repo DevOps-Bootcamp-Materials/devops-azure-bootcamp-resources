@@ -1,0 +1,105 @@
+services:
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    networks:
+      - monitoring
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./templates:/etc/alertmanager/templates:ro
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+      - "--web.external-url=http://localhost:9093"
+    networks:
+      - monitoring
+
+  # MailDev: SMTP catch-all server. Accepts every message on :1025 and shows
+  # it rendered (HTML + plain text + headers) at http://localhost:1080.
+  # Nothing leaves this container.
+  maildev:
+    image: maildev/maildev:2.1.0
+    container_name: maildev
+    ports:
+      - "1080:1080"   # web UI
+      - "1025:1025"   # SMTP
+    networks:
+      - monitoring
+
+  # Webhook logger: prints every HTTP POST body to its stdout.
+  # We use it both as a generic webhook receiver and as a fake Slack endpoint
+  # (slack_configs in Alertmanager POSTs a Slack-shaped JSON envelope, which
+  # the webhook-logger happily logs).
+  webhook-logger:
+    image: mendhak/http-https-echo:34
+    container_name: webhook-logger
+    ports:
+      - "9000:9000"
+    environment:
+      - HTTP_PORT=9000
+    networks:
+      - monitoring
+
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: node-exporter
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    networks:
+      - monitoring
+
+  # Demo app exposing realistic HTTP metrics:
+  #   http_requests_total{handler, code}
+  #   http_request_duration_seconds_bucket{handler}
+  demo-app:
+    image: quay.io/brancz/prometheus-example-app:v0.3.0
+    container_name: demo-app
+    ports:
+      - "8080:8080"
+    networks:
+      - monitoring
+
+  # On-demand CPU stressor. Stopped by default (profile: stress).
+  # Start it to fire HighCpuUtilization; stop it to let the alert resolve.
+  #
+  # First time:   docker compose --profile stress up -d cpu-stressor
+  # Re-start:     docker compose start cpu-stressor
+  # Stop:         docker compose stop cpu-stressor
+  cpu-stressor:
+    image: polinux/stress-ng
+    container_name: cpu-stressor
+    profiles: ["stress"]
+    command: ["stress-ng", "--cpu", "0", "--timeout", "600s"]
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    driver: bridge
+
+volumes:
+  prometheus-data:

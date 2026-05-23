@@ -1,0 +1,73 @@
+services:
+  ollama:
+    image: ollama/ollama:0.5.4
+    container_name: ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    # No host port mapping by default — the inference-api reaches Ollama
+    # over the internal compose network. If you want to inspect Ollama
+    # from your host (e.g., `curl localhost:11434/api/tags`), add a
+    # ports: ["11434:11434"] block here. On hosts that already run
+    # Ollama natively, leaving this out avoids a port conflict.
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  model-puller:
+    image: ollama/ollama:0.5.4
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint:
+      - sh
+      - -c
+      - "ollama pull qwen2.5:1.5b && echo 'model ready'"
+    restart: "no"
+
+  inference-api:
+    build: .
+    image: inference-api:latest
+    container_name: inference-api
+    environment:
+      MODEL_NAME: qwen2.5:1.5b
+      OLLAMA_HOST: http://ollama:11434
+    ports:
+      - "8080:8080"
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  ollama_data:

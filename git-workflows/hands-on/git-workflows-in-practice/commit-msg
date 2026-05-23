@@ -1,0 +1,60 @@
+#!/bin/sh
+# commit-msg hook — enforces the Conventional Commits specification.
+#
+# Place this file at .git/hooks/commit-msg and make it executable:
+#   chmod +x .git/hooks/commit-msg
+#
+# To enforce this on the server side as well (catching commits made without
+# the hook installed locally), add a GitHub Actions workflow that runs
+# commitlint on every push. See the resources README for a ready-made example.
+
+MSG=$(cat "$1")
+
+# Skip merge commits and fixup commits (created by git rebase --autosquash)
+if echo "$MSG" | grep -qE '^(Merge |fixup! |squash! )'; then
+    exit 0
+fi
+
+# The first line must match: <type>(<optional-scope>)!?: <subject>
+# Breaking change marker (!) is allowed after the type or scope.
+# Subject must be between 1 and 72 characters.
+PATTERN='^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]+\))?!?: .{1,72}$'
+
+FIRST_LINE=$(echo "$MSG" | head -n 1)
+
+if ! echo "$FIRST_LINE" | grep -qE "$PATTERN"; then
+    echo ""
+    echo "ERROR: Commit message does not follow Conventional Commits."
+    echo ""
+    echo "  Expected format:"
+    echo "    <type>(<scope>): <subject>"
+    echo ""
+    echo "  Valid types:"
+    echo "    feat     - new feature visible to users or other services"
+    echo "    fix      - bug fix"
+    echo "    docs     - documentation only"
+    echo "    style    - formatting, whitespace, no logic change"
+    echo "    refactor - code restructure with no behaviour change"
+    echo "    perf     - measurable performance improvement"
+    echo "    test     - adding or correcting tests"
+    echo "    chore    - build system, dependency updates, tooling"
+    echo "    ci       - CI/CD pipeline configuration"
+    echo "    build    - build system or packaging"
+    echo "    revert   - reverting a previous commit"
+    echo ""
+    echo "  Breaking change: append ! after the type or scope"
+    echo "    feat(api)!: remove deprecated /v1 endpoints"
+    echo ""
+    echo "  Examples:"
+    echo "    feat(auth): add OAuth2 login via Azure AD"
+    echo "    fix(api): return 404 instead of 500 on missing resource"
+    echo "    docs: add deployment runbook for AKS production cluster"
+    echo "    chore(deps): bump prometheus-client from 0.16 to 0.20"
+    echo "    ci: add commitlint check to pull request workflow"
+    echo ""
+    echo "  Your message: $FIRST_LINE"
+    echo ""
+    exit 1
+fi
+
+exit 0

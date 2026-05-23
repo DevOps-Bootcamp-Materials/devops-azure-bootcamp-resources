@@ -1,0 +1,29 @@
+# PodMonitor: tells the Azure Monitor metrics add-on (ama-metrics) to scrape this pod.
+#
+# IMPORTANT: the AKS metrics add-on installs FORKED CRDs under the
+# `azmonitoring.coreos.com` API group, NOT the upstream `monitoring.coreos.com`.
+# This avoids conflicts when both the add-on and the kube-prometheus-stack chart
+# (or any other Prometheus Operator install) are present on the same cluster.
+# The schema is otherwise identical to the upstream PodMonitor / ServiceMonitor.
+#
+# Reference: https://learn.microsoft.com/azure/azure-monitor/containers/prometheus-metrics-scrape-crd
+apiVersion: azmonitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: sample-app
+  namespace: demo-app
+  labels:
+    app: sample-app
+spec:
+  # Required by the add-on; values copied from Microsoft's reference template so
+  # labels are not silently dropped at ingest.
+  labelLimit: 63
+  labelNameLengthLimit: 511
+  labelValueLengthLimit: 1023
+  selector:
+    matchLabels:
+      app: sample-app
+  podMetricsEndpoints:
+    - port: http-metrics
+      interval: 30s
+      path: /metrics

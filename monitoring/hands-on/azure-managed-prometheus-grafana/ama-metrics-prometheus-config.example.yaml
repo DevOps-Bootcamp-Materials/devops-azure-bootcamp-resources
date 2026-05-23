@@ -1,0 +1,28 @@
+# Example custom scrape config for the Azure Monitor metrics add-on.
+#
+# When you DO NOT want to use PodMonitor/ServiceMonitor (e.g. you are scraping a
+# non-Kubernetes target like an external IP), the add-on supports a ConfigMap
+# in kube-system named `ama-metrics-prometheus-config` whose `prometheus-config`
+# key is raw Prometheus scrape configuration.
+#
+# Apply with:
+#   kubectl apply -f ama-metrics-prometheus-config.example.yaml
+#   kubectl rollout restart -n kube-system deploy/ama-metrics
+#
+# Reference: https://learn.microsoft.com/azure/azure-monitor/containers/prometheus-metrics-scrape-configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ama-metrics-prometheus-config
+  namespace: kube-system
+data:
+  prometheus-config: |-
+    scrape_configs:
+      - job_name: my-external-service
+        scrape_interval: 30s
+        static_configs:
+          - targets:
+              - "203.0.113.10:9100"
+            labels:
+              env: prod
+              owner: platform

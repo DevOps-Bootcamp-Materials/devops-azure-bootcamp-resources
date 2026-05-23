@@ -1,0 +1,17 @@
+# Reference manifest. Standard ClusterIP service exposing the API.
+# The named port `http` is what the ServiceMonitor selector targets.
+apiVersion: v1
+kind: Service
+metadata:
+  name: inference-api
+  namespace: mlops
+  labels:
+    app: inference-api
+spec:
+  type: ClusterIP
+  selector:
+    app: inference-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

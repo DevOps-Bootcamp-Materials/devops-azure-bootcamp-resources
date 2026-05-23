@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: gateway
+    static_configs:
+      - targets: ["gateway:8080"]
+        labels: { service: gateway }
+
+  - job_name: orders
+    static_configs:
+      - targets: ["orders:8080"]
+        labels: { service: orders }
+
+  - job_name: users
+    static_configs:
+      - targets: ["users:8080"]
+        labels: { service: users }
+
+  - job_name: payments
+    static_configs:
+      - targets: ["payments:8080"]
+        labels: { service: payments }
+
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]

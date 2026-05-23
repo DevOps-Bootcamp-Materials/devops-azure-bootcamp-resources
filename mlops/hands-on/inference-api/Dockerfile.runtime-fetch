@@ -1,0 +1,30 @@
+# Anti-pattern reference — do NOT build this image for the hands-on.
+# Shown to illustrate why downloading the model at container startup
+# (instead of baking it into the image at build time) is a bad idea
+# for classical models. See README "Part 2 — bake vs runtime fetch".
+#
+# In the LLM case, the equivalent mistake is making the inference-api
+# image itself responsible for pulling the Ollama model on startup.
+# Ollama as a separate service already solves this correctly: the
+# weights live in a persistent volume managed by the Ollama process,
+# and the inference-api stays small and starts fast.
+
+FROM python:3.11-slim
+
+WORKDIR /srv
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app/ /srv/app/
+
+# The mistake: fetch a multi-gigabyte artifact on every cold start.
+# Breaks readiness probes (timeout), confuses HPA (slow scale-out),
+# wastes egress bandwidth, and makes rollbacks non-deterministic.
+ENV MODEL_URL="https://example.com/models/model-v3.pkl"
+COPY scripts/fetch_at_startup.sh /srv/fetch_at_startup.sh
+RUN chmod +x /srv/fetch_at_startup.sh
+
+EXPOSE 8080
+
+CMD ["/srv/fetch_at_startup.sh"]

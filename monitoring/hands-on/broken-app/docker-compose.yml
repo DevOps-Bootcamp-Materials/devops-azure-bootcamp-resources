@@ -1,0 +1,108 @@
+services:
+  # ── Application: four roles from the same image ────────────────────────────
+
+  gateway:
+    build: ./app
+    image: broken-app:latest
+    container_name: broken-gateway
+    environment:
+      - SERVICE_NAME=gateway
+      - PORT=8080
+    ports:
+      - "8080:8080"
+    networks:
+      - broken-app
+    depends_on:
+      - orders
+      - users
+      - payments
+    restart: unless-stopped
+
+  orders:
+    image: broken-app:latest
+    container_name: broken-orders
+    environment:
+      - SERVICE_NAME=orders
+      - PORT=8080
+    networks:
+      - broken-app
+    restart: unless-stopped
+
+  users:
+    image: broken-app:latest
+    container_name: broken-users
+    environment:
+      - SERVICE_NAME=users
+      - PORT=8080
+    # Memory cap so scenario 2 (the leak) ends in OOMKill — that is the demo.
+    mem_limit: 192m
+    memswap_limit: 192m
+    networks:
+      - broken-app
+    restart: unless-stopped
+
+  payments:
+    image: broken-app:latest
+    container_name: broken-payments
+    environment:
+      - SERVICE_NAME=payments
+      - PORT=8080
+    networks:
+      - broken-app
+    restart: unless-stopped
+
+  # ── Observability stack ────────────────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: broken-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    networks:
+      - broken-app
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: broken-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    networks:
+      - broken-app
+    depends_on:
+      - prometheus
+
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: broken-node-exporter
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    networks:
+      - broken-app
+
+networks:
+  broken-app:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:

@@ -6,6 +6,68 @@ The focus of this list is practical: how to use AI tools effectively as a DevOps
 
 ---
 
+## AI Agents, MCPs, and Skills
+
+Resources for the hands-on W16.8 — moving beyond single prompts into agent loops, tool protocols, and reusable workflow patterns.
+
+---
+
+### [Model Context Protocol specification — modelcontextprotocol.io](https://modelcontextprotocol.io/specification)
+
+**Why use it:** The authoritative reference for MCP. Covers the protocol wire format, transport options (stdio vs SSE), the three capability types (Tools, Resources, Prompts), the lifecycle of a connection, and the versioning model. You do not need to read it cover to cover; treat it as the reference you go to when a server behaves unexpectedly.
+
+**When to use it:** When debugging an MCP server connection, when writing your own server and need to know exact message shapes, or when a server update breaks something and you need to understand what changed.
+
+---
+
+### [Official MCP servers repository — github.com/modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers)
+
+**Why use it:** The canonical list of available MCP servers maintained by Anthropic. Includes official servers for GitHub, filesystem, git, PostgreSQL, Slack, Brave Search, and more. Each server's README covers installation, configuration, and the tools it exposes. New servers are added regularly; watch the repository to know when something relevant to your work appears.
+
+**When to use it:** Whenever you want to extend Claude Code with new capabilities. Check here before building a custom server — the capability you need may already exist.
+
+---
+
+### [Anthropic MCP connector documentation](https://docs.anthropic.com/en/docs/agents-and-tools/mcp-connector)
+
+**Why use it:** Covers how to use MCP servers via the Anthropic Messages API — the path to take when building automated pipelines (CI steps, scripts, services) that need tool access, rather than interactive Claude Code sessions. For Claude Code setup, configure `settings.json` as shown in the hands-on; this page covers the programmatic equivalent.
+
+**When to use it:** When you want to give a Python or TypeScript service access to MCP tools via the API, not via Claude Code interactively.
+
+---
+
+### [Anthropic Tool Use documentation](https://docs.anthropic.com/en/docs/tool-use)
+
+**Why use it:** Covers function calling (tool use) at the Claude API level — the mechanism underneath MCP. Explains how to pass a `tools` array to the API, how the model returns `tool_use` blocks, how to pass `tool_result` back, and how to drive the loop manually in code. Necessary reading if you want to build AI-assisted automation that runs without Claude Code (scripts, CI steps, services).
+
+**When to use it:** When you want to call the Claude API from a Python or TypeScript script with tools — not through Claude Code interactively, but programmatically in a pipeline or service.
+
+---
+
+### [David Crawshaw — "How I program with Agents"](https://crawshaw.io/blog/programming-with-agents)
+
+**Why use it:** The most cited first-person account of a practical agent workflow. Crawshaw describes which tasks he delegates to agents, what guardrails he uses, and where the agent loop breaks down — from the perspective of a senior infrastructure engineer (Tailscale co-founder) who has been shipping software with agents in the loop for over a year.
+
+**When to use it:** Before designing your first agent-assisted workflow. Crawshaw's framing of "what does the agent own, what do you own" is the most reusable piece of advice in the public practitioner literature on agents.
+
+---
+
+### [David Crawshaw — "Eight more months of agents"](https://crawshaw.io/blog/eight-more-months-of-agents)
+
+**Why use it:** The follow-up to the above, written after eight additional months of daily agent use. Where the first post describes the initial design, this one describes what held up and what broke. Useful specifically because it documents the failure modes that only appear at scale — context drift, review bottlenecks, cases where the agent confidently goes in the wrong direction for multiple steps.
+
+**When to use it:** After your first agent workflow is running and you want to anticipate the problems that come next.
+
+---
+
+### [ReAct: Synergizing Reasoning and Acting in Language Models (Yao et al., 2023)](https://arxiv.org/abs/2210.03629)
+
+**Why use it:** The paper that named and formalised the Thought/Action/Observation loop that most current agents follow. Reading the original paper (it is short) gives you the vocabulary to reason precisely about agent behavior, understand why agents sometimes "think out loud" before acting, and explain the pattern to a team.
+
+**When to use it:** Once. It is a short paper; read it when you want to understand *why* the agent loop works the way it does, rather than just accepting that it does.
+
+---
+
 ## Prompt Engineering Guides
 
 ### [Anthropic Prompt Engineering Guide](https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview)

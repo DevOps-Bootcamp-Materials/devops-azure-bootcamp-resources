@@ -1,0 +1,60 @@
+# Reference manifest — NOT applied as part of the bootcamp hands-on.
+# Provided so you can see how the same inference-api would deploy to
+# a Kubernetes cluster (e.g., AKS) with kube-prometheus-stack scraping
+# it via a ServiceMonitor.
+#
+# Notable choices vs the docker-compose stack:
+# - readinessProbe.initialDelaySeconds is high because the FIRST request
+#   to Ollama loads the model into memory and can take 10-30 s on CPU.
+# - resources.requests reflects observed steady-state memory; the model
+#   itself lives in the ollama pod, not here.
+# - Two replicas demonstrate that the gauge inference_model_version is
+#   per-pod but always carries the same model label.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inference-api
+  namespace: mlops
+  labels:
+    app: inference-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: inference-api
+  template:
+    metadata:
+      labels:
+        app: inference-api
+    spec:
+      containers:
+        - name: inference-api
+          image: <acr-name>.azurecr.io/inference-api:1.0.0
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: MODEL_NAME
+              value: qwen2.5:1.5b
+            - name: OLLAMA_HOST
+              value: http://ollama.mlops.svc.cluster.local:11434
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30

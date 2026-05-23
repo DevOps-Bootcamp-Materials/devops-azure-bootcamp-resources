@@ -1,0 +1,42 @@
+groups:
+  - name: inference-api
+    interval: 15s
+    rules:
+      - alert: ResponseLengthShift
+        expr: histogram_quantile(0.95, sum by (le, model) (rate(inference_response_tokens_bucket[5m]))) > 256
+        for: 2m
+        labels:
+          severity: warning
+          owner: ml-team
+        annotations:
+          summary: "Response length p95 above 256 tokens for {{ $labels.model }}"
+          description: >
+            The 95th percentile of generated response tokens has shifted upward.
+            This is an early-warning signal that input prompt distribution has
+            changed (drift). The DevOps team wires this alert; the ML team owns
+            the threshold and the response (re-prompt design, model swap, retrain).
+
+      - alert: HighInferenceLatency
+        expr: histogram_quantile(0.95, sum by (le, model) (rate(inference_latency_seconds_bucket[5m]))) > 10
+        for: 2m
+        labels:
+          severity: warning
+          owner: devops-team
+        annotations:
+          summary: "Inference latency p95 above 10s for {{ $labels.model }}"
+          description: >
+            End-to-end inference latency p95 exceeds 10 seconds. This is an
+            infrastructure SLO breach — investigate node CPU saturation,
+            Ollama queue depth, or upstream prompt complexity.
+
+      - alert: InferenceErrorRate
+        expr: |
+          sum by (model) (rate(inference_requests_total{status="error"}[5m]))
+            /
+          sum by (model) (rate(inference_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          owner: devops-team
+        annotations:
+          summary: "Inference error rate above 5% for {{ $labels.model }}"

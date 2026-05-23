@@ -1,0 +1,24 @@
+# Reference manifest. Autoscale on a custom Prometheus metric
+# (requests in flight) rather than CPU — memory is dominated by the
+# loaded model weights and is therefore constant regardless of load.
+# Requires prometheus-adapter or KEDA to expose inference_requests_total
+# as a custom metric to the HPA controller.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: inference-api
+  namespace: mlops
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: inference-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

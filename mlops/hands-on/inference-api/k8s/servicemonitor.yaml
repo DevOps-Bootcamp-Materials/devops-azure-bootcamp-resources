@@ -1,0 +1,22 @@
+# Reference manifest. ServiceMonitor is a CRD from the kube-prometheus-stack
+# (Prometheus Operator). It tells the Prometheus instance running in the
+# cluster which Service to scrape, on which port, at which path.
+#
+# This is the K8s equivalent of the static_configs scrape entry used in
+# the docker-compose prometheus.yml. The label `release: kube-prometheus-stack`
+# matches the default selector on the Prometheus CR installed by the Helm chart.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: inference-api
+  namespace: mlops
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: inference-api
+  endpoints:
+    - port: http
+      path: /metrics/
+      interval: 15s

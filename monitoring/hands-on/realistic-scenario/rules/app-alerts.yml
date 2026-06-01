@@ -29,7 +29,7 @@ groups:
           summary: "High error rate on /api/payments"
           description: >-
             The error rate on /api/payments has been above 5% for more than 1 minute.
-            Current value: {{ printf "%.1f" (mul $value 100) }}%.
+            Current value: {{ $value | humanizePercentage }}.
             This may indicate a downstream dependency failure.
 
       - alert: AnyEndpointHighErrorRate
@@ -46,7 +46,7 @@ groups:
           summary: "High error rate on {{ $labels.endpoint }}"
           description: >-
             Error rate on {{ $labels.endpoint }} has exceeded 10% for 2 minutes.
-            Current value: {{ printf "%.1f" (mul $value 100) }}%.
+            Current value: {{ $value | humanizePercentage }}.
 
       # ── Latency ─────────────────────────────────────────────────────────────
 

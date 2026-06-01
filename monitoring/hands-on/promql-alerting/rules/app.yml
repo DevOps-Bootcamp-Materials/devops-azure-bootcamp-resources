@@ -31,4 +31,4 @@ groups:
           severity: critical
         annotations:
           summary: "High error rate on handler {{ $labels.handler }}"
-          description: "Error rate for {{ $labels.handler }} is {{ printf \"%.1f\" (mul $value 100) }}%, exceeding 5%."
+          description: "Error rate for {{ $labels.handler }} is {{ $value | humanizePercentage }}, exceeding 5%."

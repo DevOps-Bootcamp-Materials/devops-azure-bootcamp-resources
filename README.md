@@ -28,6 +28,14 @@ It is the companion to the bootcamp classes: the lessons and explanations are de
 
 Each module has its own `README.md` with prerequisites, environment setup and a description of every hands-on inside.
 
+## Companion repository — reference architecture
+
+The instructor builds a separate, end-to-end **reference architecture** project that the bootcamp uses for in-class demos: a production-shaped Azure platform stack (Terraform + AKS + OIDC CI/CD + GitOps + observability + DevSecOps). It lives in its own repository so it stays self-contained, deployable, and forkable:
+
+➡️ **https://github.com/iscoct/globalretail-platform**
+
+Students are not expected to build it from scratch. The instructor demos individual layers in class when the corresponding topic comes up in the schedule, and the layer READMEs serve as self-study material afterwards.
+
 ## How to use this repository
 
 1. Clone it once:

@@ -405,8 +405,8 @@ The agent appears in `kube-system` as `ama-logs` (DaemonSet, one per node, 3 con
 
 Once the agent is running you do **not** need a custom app to have data — these tables fill on their own:
 
-- **`ContainerLogV2`** — stdout/stderr of **every** container, including system ones (`coredns`, `kube-proxy`, `konnectivity-agent`, the `csi-*` drivers, even `ama-metrics`/`ama-logs` themselves). This is the table students will use 90% of the time.
-- **`KubeEvents`** — the cluster's event stream (FailedScheduling, image pulls, OOMKilled, BackOff, probe failures).
+- **`ContainerLogV2`** — stdout/stderr of your workloads. This is the table students use 90% of the time. **Important default:** Container Insights **excludes the system namespaces `kube-system` and `gatekeeper-system`** from stdout/stderr collection out of the box. So immediately after enabling logs, this table shows only your own pods (e.g. `log-generator` in `demo-app`) — querying `coredns` or `kube-proxy` returns nothing until you remove that exclusion (see 8.3.1). This trips up almost everyone: "I enabled logs but my system pods aren't there."
+- **`KubeEvents`** — the cluster's event stream (FailedScheduling, image pulls, OOMKilled, BackOff, probe failures). Populated automatically for **all** namespaces including `kube-system`, so this is the right table for "what is the cluster doing?" without any config change.
 - **`KubePodInventory`, `KubeNodeInventory`, `KubeServices`, `ContainerInventory`** — periodic snapshots of cluster objects and their status.
 - **`KubeMonAgentEvents`** — the agent's own health (useful when ingestion looks broken).
 - **`Perf`, `InsightsMetrics`** — node/container performance counters in log form (overlaps with what managed Prometheus gives you; usually prefer PromQL for these).
@@ -419,6 +419,36 @@ kubectl logs -n demo-app -l app=log-generator --tail=5   # logs at the source
 ```
 
 A useful teaching beat: Container Insights parses the level into a structured **`LogLevel`** column automatically, separate from the raw **`LogMessage`** — so you can filter/aggregate by severity without regex on the message.
+
+#### 8.3.1 Including system-namespace container logs (optional)
+
+If you want `coredns`, `kube-proxy`, or other `kube-system` **container** logs in `ContainerLogV2`, override the agent's default exclusion. Apply the Container Insights agent ConfigMap with `kube-system` removed from the stdout/stderr exclude list, then restart the agent:
+
+```yaml
+# container-azm-ms-agentconfig.yaml (minimal — collect kube-system stdout/stderr too)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: container-azm-ms-agentconfig
+  namespace: kube-system
+data:
+  config-version: "ver1"
+  log-data-collection-settings: |-
+    [log_collection_settings]
+       [log_collection_settings.stdout]
+          enabled = true
+          exclude_namespaces = ["gatekeeper-system"]   # kube-system removed
+       [log_collection_settings.stderr]
+          enabled = true
+          exclude_namespaces = ["gatekeeper-system"]   # kube-system removed
+```
+
+```bash
+kubectl apply -f container-azm-ms-agentconfig.yaml
+kubectl rollout restart ds/ama-logs -n kube-system
+```
+
+Give it a few minutes; `ContainerLogV2 | where PodNamespace == "kube-system"` then returns data. Be deliberate — system namespaces are noisy and every line is billed, which is exactly why they are excluded by default.
 
 ### 8.4 Querying from the CLI (verify ingestion)
 
@@ -476,7 +506,9 @@ ContainerLogV2
 ```
 
 ```kql
-// A system service that logs with zero app deployed — CoreDNS
+// System-pod container logs — CoreDNS.
+// NOTE: returns nothing until you remove the kube-system exclusion (see 8.3.1);
+// by default Container Insights does not collect kube-system stdout/stderr.
 ContainerLogV2
 | where PodNamespace == "kube-system" and ContainerName == "coredns"
 | project TimeGenerated, LogMessage
@@ -485,7 +517,9 @@ ContainerLogV2
 ```
 
 ```kql
-// Kubernetes events: scheduling, image pulls, OOMKilled, restarts
+// Kubernetes events: scheduling, image pulls, OOMKilled, restarts.
+// Works for ALL namespaces (incl. kube-system) with no config change — the
+// right "what is the cluster doing?" query out of the box.
 KubeEvents
 | where TimeGenerated > ago(2h)
 | project TimeGenerated, Namespace, Name, Reason, Message, Count
@@ -630,7 +664,8 @@ Other region-default workspaces may be shared by other clusters — only delete 
 | Logs: enabled Container Insights but the Log Analytics workspace is not in the hands-on RG. | With no `--workspace-resource-id`, Azure creates/uses a default workspace in `DefaultResourceGroup-<REGIONCODE>`, a separate RG. | Find it via `addonProfiles.omsagent.config.logAnalyticsWorkspaceResourceID`. Pass `--workspace-resource-id` to a workspace in your own RG if you want it co-located. Remember it survives the hands-on `az group delete` (see Cleanup). |
 | Logs: Grafana / portal shows **"No data"** in the Logs view. | The KQL query editor is empty (Logs mode does not auto-run a default query), or the time range does not overlap the data. | Paste an explicit KQL query and set the range to `Last 1 hour`. Logs are delayed a few minutes; the first ingest after enabling the add-on takes 5–10 min. |
 | `az monitor log-analytics query` prompts to install an extension and then fails with `EOFError` in a script. | The `log-analytics` CLI extension is missing and cannot prompt non-interactively. | `az extension add --name log-analytics --yes` once, then re-run. Pass the workspace **GUID** (`customerId`) to `-w`, not the resource ID. |
-| Logs: `kubectl logs -n demo-app -l app=sample-app` is empty, so nothing shows in `ContainerLogV2` for the app. | `prometheus-example-app` (the metrics sample) writes nothing to stdout. | Deploy the log source: `kubectl apply -f manifests/logs/` (the `log-generator`). Use system pods like `coredns` for an app-free example. |
+| Logs: `kubectl logs -n demo-app -l app=sample-app` is empty, so nothing shows in `ContainerLogV2` for the app. | `prometheus-example-app` (the metrics sample) writes nothing to stdout. | Deploy the log source: `kubectl apply -f manifests/logs/` (the `log-generator`). |
+| Logs: `ContainerLogV2` shows my `demo-app` pods but **no `kube-system` / system-pod logs** (e.g. `coredns` returns nothing). | By default Container Insights **excludes `kube-system` and `gatekeeper-system`** stdout/stderr. | Expected. For system *activity* use `KubeEvents` (collected for all namespaces). For system *container logs*, apply `container-azm-ms-agentconfig` with `kube-system` removed from the exclude list and `kubectl rollout restart ds/ama-logs -n kube-system` (see Part 8.3.1). |
 
 ---
 

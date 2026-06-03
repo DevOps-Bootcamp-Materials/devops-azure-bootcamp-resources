@@ -177,6 +177,12 @@ Verify the deployment:
 kubectl get all -n demo-app
 ```
 
+You will see two workloads: `sample-app` (the instrumented metrics app, 2 replicas)
+and `log-generator` (1 replica). The `log-generator` does not expose metrics — it
+only writes log lines to stdout, and we will use it in the logging part (Part 8
+onward). The metrics app, by contrast, exposes metrics but writes nothing to
+stdout: that split is intentional, and the logging part explains why.
+
 The `ServiceMonitor` in `manifests/service-monitor.yaml` tells the Prometheus
 Operator to scrape the `sample-app` Service. The Operator updates Prometheus
 configuration automatically within a few seconds.

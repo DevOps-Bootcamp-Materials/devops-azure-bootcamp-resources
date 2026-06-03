@@ -30,11 +30,11 @@ kubectl port-forward -n monitoring svc/kube-prom-grafana 3000:80 &
 # Open: http://localhost:3000  (admin / prom-operator)
 
 # Port-forward Prometheus
-kubectl port-forward -n monitoring svc/kube-prom-kube-prometheus-stack-prometheus 9090:9090 &
+kubectl port-forward -n monitoring svc/kube-prom-kube-prometheus-prometheus 9090:9090 &
 # Open: http://localhost:9090
 
 # Port-forward Alertmanager
-kubectl port-forward -n monitoring svc/kube-prom-kube-prometheus-stack-alertmanager 9093:9093 &
+kubectl port-forward -n monitoring svc/kube-prom-kube-prometheus-alertmanager 9093:9093 &
 # Open: http://localhost:9093
 
 # ── Deploy the instrumented sample app ────────────────────────────────────────

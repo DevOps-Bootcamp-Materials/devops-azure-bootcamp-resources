@@ -1,0 +1,39 @@
+# A tiny workload that continuously emits log lines to stdout at random
+# intervals, cycling through DEBUG / INFO / WARN / ERROR levels.
+#
+# Why this exists: the metrics sample app (prometheus-example-app) is great for
+# metrics but writes NOTHING to stdout, so there would be nothing for Loki to
+# show. Real applications log to stdout/stderr — that is the convention the
+# container runtime captures and Promtail collects. This workload stands in for
+# such an application so we have a realistic, controllable stream of logs.
+#
+# Image args: <min_ms> <max_ms> — random delay between lines.
+# Source: https://github.com/chentex/random-logger
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-generator
+  namespace: demo-app
+  labels:
+    app: log-generator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: log-generator
+  template:
+    metadata:
+      labels:
+        app: log-generator
+    spec:
+      containers:
+        - name: log-generator
+          image: chentex/random-logger:latest
+          args: ["200", "1000"]   # one line every 0.2-1.0s
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi

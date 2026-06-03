@@ -89,10 +89,10 @@ Open three terminal tabs and run these port-forwards:
 kubectl port-forward -n monitoring svc/kube-prom-grafana 3000:80
 
 # Prometheus Expression Browser
-kubectl port-forward -n monitoring svc/kube-prom-kube-prometheus-stack-prometheus 9090:9090
+kubectl port-forward -n monitoring svc/kube-prom-kube-prometheus-prometheus 9090:9090
 
 # Alertmanager
-kubectl port-forward -n monitoring svc/kube-prom-kube-prometheus-stack-alertmanager 9093:9093
+kubectl port-forward -n monitoring svc/kube-prom-kube-prometheus-alertmanager 9093:9093
 ```
 
 Open in your browser:

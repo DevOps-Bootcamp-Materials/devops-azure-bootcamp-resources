@@ -228,7 +228,7 @@ You should see one or two emails depending on routing:
 Click the email to open it. Notice:
 - The subject contains `[FIRING]` and the alert name
 - The body includes the `summary` and `description` annotations from the rule
-- The `{{ printf "%.1f" (mul $value 100) }}%` template rendered to the actual
+- The `{{ $value | humanizePercentage }}` template rendered to the actual
   percentage value at the time the alert fired
 - The alert includes the `team: payments` label — in production this would
   route to the payments team's PagerDuty, not the general on-call

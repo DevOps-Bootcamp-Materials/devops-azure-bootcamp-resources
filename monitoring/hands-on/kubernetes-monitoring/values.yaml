@@ -6,6 +6,19 @@ grafana:
   adminPassword: "prom-operator"    # default in the official chart
   service:
     type: ClusterIP                  # access via kubectl port-forward
+  # Provision Loki as a second datasource alongside the Prometheus that the
+  # chart already wires in. This is what lets you query logs in Grafana >
+  # Explore without adding the datasource by hand. Loki is installed separately
+  # (helm install loki grafana/loki) — see the logging part of the README.
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki.monitoring.svc.cluster.local:3100
+      jsonData:
+        # Keep timeouts short so a missing Loki fails fast in class.
+        timeout: 60
+        maxLines: 1000
 
 prometheus:
   prometheusSpec:

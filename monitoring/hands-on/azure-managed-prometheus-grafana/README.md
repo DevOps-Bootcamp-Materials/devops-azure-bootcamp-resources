@@ -12,6 +12,7 @@ The hands-on swaps the self-managed `kube-prometheus-stack` (W15.1) for the Azur
 - `manifests/deployment.yaml` — `brancz/prometheus-example-app` (same image used in W14 hands-on 02 and W15.1).
 - `manifests/service.yaml` — ClusterIP service in front of the deployment.
 - `manifests/pod-monitor.yaml` — `PodMonitor` CRD under the forked `azmonitoring.coreos.com/v1` API group (see Part 4 for why).
+- `manifests/logs/log-generator.yaml` — a chatty workload (DEBUG/INFO/WARN/ERROR to stdout) used by the optional **logs** flow (Part 8). In a subfolder so the metrics `kubectl apply -f manifests/` (non-recursive) never picks it up.
 - `ama-metrics-prometheus-config.example.yaml` — example custom scrape config via ConfigMap (Part 6). Kept **outside** `manifests/` on purpose so `kubectl apply -f manifests/` does not overwrite the add-on's live ConfigMap by mistake.
 
 ## Prerequisites
@@ -359,6 +360,210 @@ A common pattern: dev / lower environments on kube-prometheus-stack (cheap, fast
 
 ---
 
+## Part 8 — The other pillar: logs with Container Insights
+
+Everything in Parts 1–7 is **metrics**. Azure Monitor's other half is **logs**, and the single most common misconception is that the metrics add-on also gives you logs. It does not. They are two independent pipelines with different add-ons, stores, identities, and query languages. This part is the optional logs extension the bootcamp hands-on covers in its Step 9.
+
+### 8.1 Metrics vs logs — two products that share a brand
+
+| | Metrics (managed Prometheus) | Logs (Container Insights) |
+|---|---|---|
+| Add-on | `ama-metrics` (`--enable-azure-monitor-metrics`) | `ama-logs` (`--enable-addons monitoring`) |
+| Store resource type | `Microsoft.Monitor/accounts` (Azure Monitor Workspace) | `Microsoft.OperationalInsights/workspaces` (Log Analytics workspace) |
+| Data shape | Numeric time series | Structured/text rows in tables |
+| Query language | PromQL | KQL (Kusto) |
+| Default retention | 18 months | 30 days (configurable to 730; archive to 12 years) |
+| Billing model | Per million samples ingested + per GB stored | Per GB ingested + per GB retained beyond the free 31 days |
+
+Both surface under "Azure Monitor" in the portal and both can be queried from the same Grafana instance, which is exactly why students conflate them. The mental model to teach: **metrics answer "how much / how fast"; logs answer "what happened / what did it say"**.
+
+### 8.2 Enabling it, and the resource-group gotcha
+
+```bash
+az aks enable-addons --addon monitoring \
+  --resource-group rg-bootcamp-test-azmon-prom-grafana \
+  --name aks-bootcamp-azmon
+```
+
+`provision.sh` keeps this opt-in: it only enables Container Insights when you pass `ENABLE_LOGS=1` (`ENABLE_LOGS=1 bash provision.sh`), so metrics-only runs never incur the logs workspace or its cost. The block is idempotent and prints the workspace resource ID at the end.
+
+With no `--workspace-resource-id`, Azure does **not** put the Log Analytics workspace in your hands-on RG. It creates (or reuses) a default one named `DefaultWorkspace-<subId>-<REGIONCODE>` inside a **separate** resource group `DefaultResourceGroup-<REGIONCODE>` (e.g. `DefaultResourceGroup-WEU`, `DefaultResourceGroup-NEU`). Consequences:
+
+- `az group delete` on your hands-on RG leaves that workspace behind. Cleanup needs a second command (see Cleanup below).
+- Multiple clusters in the same region/subscription share that one default workspace — fine for a class, but it means one student's logs sit next to another's. For isolation, pass `--workspace-resource-id` to a workspace you created in your own RG.
+
+Find which workspace a cluster is actually wired to:
+
+```bash
+az aks show -g rg-bootcamp-test-azmon-prom-grafana -n aks-bootcamp-azmon \
+  --query "addonProfiles.omsagent.config.logAnalyticsWorkspaceResourceID" -o tsv
+```
+
+The agent appears in `kube-system` as `ama-logs` (DaemonSet, one per node, 3 containers each) plus an `ama-logs-rs` ReplicaSet pod for cluster-level collection. It reads every container's stdout/stderr from the node, plus the Kubernetes API for inventory and events.
+
+### 8.3 What logs you get automatically
+
+Once the agent is running you do **not** need a custom app to have data — these tables fill on their own:
+
+- **`ContainerLogV2`** — stdout/stderr of **every** container, including system ones (`coredns`, `kube-proxy`, `konnectivity-agent`, the `csi-*` drivers, even `ama-metrics`/`ama-logs` themselves). This is the table students will use 90% of the time.
+- **`KubeEvents`** — the cluster's event stream (FailedScheduling, image pulls, OOMKilled, BackOff, probe failures).
+- **`KubePodInventory`, `KubeNodeInventory`, `KubeServices`, `ContainerInventory`** — periodic snapshots of cluster objects and their status.
+- **`KubeMonAgentEvents`** — the agent's own health (useful when ingestion looks broken).
+- **`Perf`, `InsightsMetrics`** — node/container performance counters in log form (overlaps with what managed Prometheus gives you; usually prefer PromQL for these).
+
+The metrics `sample-app` writes nothing to stdout, so it is a poor demo source. `manifests/logs/log-generator.yaml` deploys `chentex/random-logger`, which emits a steady DEBUG/INFO/WARN/ERROR stream:
+
+```bash
+kubectl apply -f manifests/logs/
+kubectl logs -n demo-app -l app=log-generator --tail=5   # logs at the source
+```
+
+A useful teaching beat: Container Insights parses the level into a structured **`LogLevel`** column automatically, separate from the raw **`LogMessage`** — so you can filter/aggregate by severity without regex on the message.
+
+### 8.4 Querying from the CLI (verify ingestion)
+
+First ingest takes ~5–10 minutes after enabling the add-on. Verify from the shell (`az extension add --name log-analytics` once; it will not install interactively from a script):
+
+```bash
+WSID=$(az aks show -g rg-bootcamp-test-azmon-prom-grafana -n aks-bootcamp-azmon \
+  --query "addonProfiles.omsagent.config.logAnalyticsWorkspaceResourceID" -o tsv)
+GUID=$(az monitor log-analytics workspace show --ids "$WSID" --query customerId -o tsv)
+
+az monitor log-analytics query -w "$GUID" --analytics-query \
+  'union ContainerLogV2, KubeEvents, KubePodInventory
+   | where TimeGenerated > ago(1h)
+   | summarize Rows=count() by Type' -o table
+```
+
+Note `-w` takes the workspace **GUID** (`customerId`), not its resource ID or name — a frequent stumble.
+
+### 8.5 A library of example queries
+
+These are deliberately spread across different tables/resources so you can show the breadth in class. All assume a `Last 1 hour`–`6 hours` time range.
+
+```kql
+// Application logs: the log-generator, newest first
+ContainerLogV2
+| where PodNamespace == "demo-app" and PodName startswith "log-generator"
+| project TimeGenerated, LogLevel, LogMessage
+| order by TimeGenerated desc
+| take 50
+```
+
+```kql
+// Severity breakdown over time (a "log RED" timechart)
+ContainerLogV2
+| where PodNamespace == "demo-app"
+| summarize count() by LogLevel, bin(TimeGenerated, 1m)
+| render timechart
+```
+
+```kql
+// Only errors and warnings, across the whole cluster
+ContainerLogV2
+| where LogLevel in ("error", "warning")
+| project TimeGenerated, PodNamespace, PodName, LogLevel, LogMessage
+| order by TimeGenerated desc
+| take 100
+```
+
+```kql
+// Full-text search across all container logs (the "grep" demo)
+ContainerLogV2
+| where LogMessage has "error"           // 'has' is case-insensitive; 'has_cs' is case-sensitive
+| summarize Hits=count() by ContainerName
+| order by Hits desc
+```
+
+```kql
+// A system service that logs with zero app deployed — CoreDNS
+ContainerLogV2
+| where PodNamespace == "kube-system" and ContainerName == "coredns"
+| project TimeGenerated, LogMessage
+| order by TimeGenerated desc
+| take 50
+```
+
+```kql
+// Kubernetes events: scheduling, image pulls, OOMKilled, restarts
+KubeEvents
+| where TimeGenerated > ago(2h)
+| project TimeGenerated, Namespace, Name, Reason, Message, Count
+| order by TimeGenerated desc
+```
+
+```kql
+// Current pod inventory + restart counts for a namespace
+KubePodInventory
+| where Namespace == "demo-app"
+| summarize arg_max(TimeGenerated, PodStatus, ContainerRestartCount) by Name
+```
+
+```kql
+// Pods that have restarted at all in the last 6h (incident triage)
+KubePodInventory
+| where TimeGenerated > ago(6h) and ContainerRestartCount > 0
+| summarize MaxRestarts=max(ContainerRestartCount) by Namespace, Name
+| order by MaxRestarts desc
+```
+
+```kql
+// Node-level CPU usage from Container Insights perf counters.
+// Perf holds K8SNode / K8SContainer counters; cpuUsageNanoCores is the raw value.
+Perf
+| where ObjectName == "K8SNode" and CounterName == "cpuUsageNanoCores"
+| summarize avg(CounterValue) by Computer, bin(TimeGenerated, 5m)
+| render timechart
+```
+
+```kql
+// Cost driver: noisiest containers by log volume (every GB is billed)
+ContainerLogV2
+| where TimeGenerated > ago(1h)
+| summarize Lines=count(), Bytes=sum(strlen(LogMessage)) by PodNamespace, ContainerName
+| order by Bytes desc
+| take 15
+```
+
+```kql
+// Agent self-health — is anything failing to ingest?
+KubeMonAgentEvents
+| where TimeGenerated > ago(1h) and Level != "Info"
+| project TimeGenerated, Level, Message
+| order by TimeGenerated desc
+```
+
+```kql
+// Join logs to inventory: enrich error lines with the owning workload
+ContainerLogV2
+| where LogLevel == "error"
+| join kind=inner (
+    KubePodInventory
+    | summarize arg_max(TimeGenerated, ControllerName, ControllerKind) by PodName=Name
+  ) on PodName
+| project TimeGenerated, PodNamespace, PodName, ControllerKind, ControllerName, LogMessage
+| order by TimeGenerated desc
+| take 50
+```
+
+### 8.6 Viewing logs in Grafana
+
+The same `Azure Monitor` data source that was preinstalled (distinct from the `Managed_Prometheus_*` Prometheus one) can query Log Analytics — its managed identity already has `Monitoring Reader` at subscription scope, which includes `Microsoft.OperationalInsights/workspaces/query`. Steps:
+
+1. **Explore** → data source **`Azure Monitor`**.
+2. **Service: `Logs`**.
+3. **Resource**: pick the AKS cluster (Grafana resolves its associated workspace) or the `DefaultWorkspace-...` directly.
+4. Paste a KQL query from 8.5, set the time range, **Run query**. For a panel, choose the **Logs** or **Table** visualization; for the timecharts above, **Time series**.
+
+The number-one support question — *"I see No data"* — is almost always an **empty query editor**: Logs mode does not auto-run a default query the way the Metrics service does. The second most common cause is a time range that does not overlap the data (logs are delayed a few minutes; use `Last 1 hour`).
+
+### 8.7 What this does NOT cover
+
+- **Control-plane logs** (kube-apiserver, kube-audit, kube-scheduler, cloud-controller-manager) are **not** collected by Container Insights. They require **Diagnostic Settings** on the AKS resource routing the chosen log categories to a Log Analytics workspace. That is a separate enablement (`az monitor diagnostic-settings create`) and a separate set of tables (`AKSAudit`, `AKSControlPlane`, or the legacy `AzureDiagnostics`).
+- **Alerting on logs** (log search alerts / scheduled query rules) is its own topic, parallel to the Prometheus alert rules mentioned in Part 1.
+
+---
+
 ## Cleanup
 
 ```bash
@@ -376,6 +581,17 @@ If you scoped any DCR / DCRA outside the hands-on's RG (you probably did not), c
 ```bash
 az monitor data-collection rule list --query "[?starts_with(name, 'MSProm-')].{name:name, rg:resourceGroup}" -o table
 ```
+
+**If you did Part 8 (logs):** the default Log Analytics workspace was created in `DefaultResourceGroup-<REGIONCODE>`, **outside** the hands-on RG, so the delete above does not remove it. It is storage-only (no compute) and cheap to leave, but to clean up fully:
+
+```bash
+WSID=$(az aks show -g rg-bootcamp-test-azmon-prom-grafana -n aks-bootcamp-azmon \
+  --query "addonProfiles.omsagent.config.logAnalyticsWorkspaceResourceID" -o tsv 2>/dev/null)
+# Capture $WSID BEFORE deleting the cluster/RG (the query needs the cluster to exist).
+az monitor log-analytics workspace delete --ids "$WSID" --yes --force true
+```
+
+Other region-default workspaces may be shared by other clusters — only delete one you are sure is yours.
 
 ---
 
@@ -409,6 +625,12 @@ az monitor data-collection rule list --query "[?starts_with(name, 'MSProm-')].{n
 | `az aks create` fails with `Insufficient vcpu quota requested 4, remaining 0 for family standardBsv2Family`. | The chosen SKU's family has 0 vCPU quota in this region. | Run `az vm list-usage --location $LOCATION --query "[?limit!=\`0\` && contains(name.value, 'Family')]" -o table` and pick a family with available quota. Or request a quota increase. |
 | AKS create succeeds but `kubectl get nodes` returns an empty list. | `get-credentials` not run yet, or kubeconfig points at a stale context. | `az aks get-credentials --resource-group $RG --name $AKS --overwrite-existing`. |
 | `az group delete` hangs > 15 minutes. | The MC_ node resource group has a load balancer or public IP still in `Deleting`. | Wait. If still stuck after 30 min, `az network public-ip list --resource-group MC_<rg>_<aks>_<region>` to inspect; rarely needed in this hands-on because no `Service type=LoadBalancer` was created. |
+| `az aks create` fails with `PublicIPCountLimitReached ... Cannot create more than 20 public IP addresses for this subscription in this region`. | The region has hit the subscription's public-IP cap (often shared classroom subscriptions full of other students' AKS clusters). AKS needs ≥1 public IP for the standard LB egress. | Deploy in a region with headroom: check with `az network list-usages --location <region> --query "[?contains(name.value,'PublicIP')]" -o table`, then set `LOCATION` to a region below the cap. Do **not** delete other people's IPs. Managed Prometheus supports AKS and the Workspace in different regions if you only want to move the cluster. |
+| Logs: `az aks show ... addonProfiles.omsagent.enabled` is empty after enabling metrics. | Expected — metrics (`ama-metrics`) and logs (`ama-logs`) are separate add-ons. `--enable-azure-monitor-metrics` never turns on logs. | Enable logs explicitly: `az aks enable-addons --addon monitoring -g $RG -n $AKS`. See Part 8. |
+| Logs: enabled Container Insights but the Log Analytics workspace is not in the hands-on RG. | With no `--workspace-resource-id`, Azure creates/uses a default workspace in `DefaultResourceGroup-<REGIONCODE>`, a separate RG. | Find it via `addonProfiles.omsagent.config.logAnalyticsWorkspaceResourceID`. Pass `--workspace-resource-id` to a workspace in your own RG if you want it co-located. Remember it survives the hands-on `az group delete` (see Cleanup). |
+| Logs: Grafana / portal shows **"No data"** in the Logs view. | The KQL query editor is empty (Logs mode does not auto-run a default query), or the time range does not overlap the data. | Paste an explicit KQL query and set the range to `Last 1 hour`. Logs are delayed a few minutes; the first ingest after enabling the add-on takes 5–10 min. |
+| `az monitor log-analytics query` prompts to install an extension and then fails with `EOFError` in a script. | The `log-analytics` CLI extension is missing and cannot prompt non-interactively. | `az extension add --name log-analytics --yes` once, then re-run. Pass the workspace **GUID** (`customerId`) to `-w`, not the resource ID. |
+| Logs: `kubectl logs -n demo-app -l app=sample-app` is empty, so nothing shows in `ContainerLogV2` for the app. | `prometheus-example-app` (the metrics sample) writes nothing to stdout. | Deploy the log source: `kubectl apply -f manifests/logs/` (the `log-generator`). Use system pods like `coredns` for an app-free example. |
 
 ---
 
@@ -421,3 +643,8 @@ az monitor data-collection rule list --query "[?starts_with(name, 'MSProm-')].{n
 - [Data collection rules in Azure Monitor](https://learn.microsoft.com/azure/azure-monitor/essentials/data-collection-rule-overview) — DCR / DCE / DCRA concepts in full.
 - [Azure Monitor pricing](https://azure.microsoft.com/pricing/details/monitor/) — sample-based pricing for managed Prometheus.
 - [Azure Managed Grafana pricing](https://azure.microsoft.com/pricing/details/managed-grafana/) — Essential vs Standard SKU breakdown.
+- [Container Insights overview](https://learn.microsoft.com/azure/azure-monitor/containers/container-insights-overview) — the logs/Container Insights pillar (Part 8).
+- [Container Insights log schema (ContainerLogV2, KubeEvents, inventory tables)](https://learn.microsoft.com/azure/azure-monitor/containers/container-insights-log-schema) — every table the agent writes and its columns.
+- [Log Analytics / KQL tutorial](https://learn.microsoft.com/azure/azure-monitor/logs/log-analytics-tutorial) — the query language used in Part 8.
+- [Change Log Analytics retention and archive](https://learn.microsoft.com/azure/azure-monitor/logs/data-retention-configure) — the 30-day default, up to 730 days, archive to 12 years.
+- [AKS control-plane / resource logs via Diagnostic Settings](https://learn.microsoft.com/azure/aks/monitor-aks#aks-control-planeresource-logs) — what Container Insights does NOT cover (Part 8.7).

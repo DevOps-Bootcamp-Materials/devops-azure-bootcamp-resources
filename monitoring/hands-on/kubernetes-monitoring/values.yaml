@@ -29,6 +29,16 @@ alertmanager:
         cpu: 50m
         memory: 50Mi
 
+# Node Exporter: on local clusters (Docker Desktop, kind, minikube) the host
+# root filesystem is not a shared/slave mount, so the default host rootfs mount
+# makes the pod crash with:
+#   "path / is mounted on / but it is not a shared or slave mount"
+# Disabling it lets node-exporter run locally. On managed clusters (AKS/EKS/GKE)
+# you can leave this enabled to get full host filesystem metrics.
+prometheus-node-exporter:
+  hostRootFsMount:
+    enabled: false
+
 # Disable components not needed for this hands-on
 kubeControllerManager:
   enabled: false

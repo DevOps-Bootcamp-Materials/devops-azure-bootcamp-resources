@@ -2,16 +2,19 @@
 
 The deep-dive companion to [`week-16/service-mesh/hands-on/01_install_istio_on_aks_bookinfo.md`](https://github.com/DevOps-Bootcamp-Materials/devops-azure-bootcamp/blob/main/week-16/service-mesh/hands-on/01_install_istio_on_aks_bookinfo.md) in the bootcamp repo. The bootcamp file is the in-class teaching script and is enough on its own to install Istio, deploy Bookinfo, and inspect the mesh. This README is what to read **after** that, when you want the full picture: every Istio component explained, the install profiles in detail, the sidecar injection mechanism end-to-end, the full Istio object model (the seven CRDs you'll meet), the xDS protocol family, the AKS managed add-on, the kind/minikube local alternative, when *not* to use Istio, and the troubleshooting table.
 
-This file is **intentionally long** because the bootcamp instructor and many of the students are seeing Istio for the first time. Read it linearly the first time, use it as a reference afterwards.
-
 ## What this folder contains
 
 - `README.md` — this file: the full reference walkthrough plus every discussion the bootcamp file deferred.
 - `manifests/bookinfo/bookinfo.yaml` — the Bookinfo sample app at Istio 1.30, pinned. Identical to the upstream copy; bundled here so the hands-on does not break if upstream moves.
 - `manifests/bookinfo/bookinfo-gateway.yaml` — the `Gateway` + `VirtualService` that expose the app at the cluster edge.
 - `manifests/bookinfo/destination-rule-all.yaml` — `DestinationRule` resources naming v1/v2/v3 subsets of the Bookinfo services.
-- `scripts/aks-up.sh` — wrapper around the `az` commands from step 1 of the bootcamp file. Idempotent, parametrised by env vars.
+- `manifests/addons/prometheus.yaml`, `manifests/addons/kiali.yaml` — the Istio observability addons at release-1.30, pinned (Kiali v2.22). A small Prometheus for Kiali to read and the Kiali topology dashboard. The `demo` profile does not include these.
+- `scripts/aks-up.sh` — creates the AKS cluster, then calls `mesh-up.sh`. Idempotent, parametrised by env vars.
 - `scripts/aks-down.sh` — counterpart to `aks-up.sh`. Tears the resource group down.
+- `scripts/kind-up.sh` — local, free alternative: creates a `kind` cluster, then calls `mesh-up.sh`. Idempotent.
+- `scripts/kind-down.sh` — deletes the `kind` cluster (removes Istio, Bookinfo, Kiali and everything at once).
+- `scripts/mesh-up.sh` — cluster-agnostic: installs Istio (`demo`) + Bookinfo + Gateway/DestinationRules + Prometheus + Kiali on the active cluster. Shared by `aks-up.sh` and `kind-up.sh` so AKS and kind get an identical mesh. Automates the *setup* so class time goes to inspecting/explaining, not typing the install.
+- `scripts/traffic.sh` — generates steady load against `/productpage` so the Kiali graph lights up. Auto-detects the AKS public IP or port-forwards on kind. Run it in a separate terminal during the demo.
 
 ## Prerequisites
 
@@ -142,12 +145,17 @@ So: any time someone CREATEs a Pod in a namespace whose `istio-injection` label 
 1. Receives the original `Pod` spec.
 2. Reads its sidecar template (an embedded Go template, customisable via the `istio-sidecar-injector` ConfigMap).
 3. Returns a JSON patch that adds two containers to the Pod:
-   - An **init container** named `istio-init`, image `proxyv2`, that runs the iptables setup script and exits.
-   - A **regular container** named `istio-proxy`, image `proxyv2`, that runs the `pilot-agent` + Envoy and stays running for the pod's lifetime.
+   - A **run-once init container** named `istio-init`, image `proxyv2`, that runs the iptables setup script and exits.
+   - The **`istio-proxy` sidecar**, image `proxyv2`, that runs the `pilot-agent` + Envoy and stays running for the pod's lifetime.
 
 The patch also adds annotations (`sidecar.istio.io/status`, `kubectl.kubernetes.io/default-container`) and a few volumes for the workload cert and the gRPC connection to `istiod`.
 
-The API server applies the patch and the modified pod is what schedulers actually see. **The original `Deployment` is unchanged in the API server.** The change only happens at admission time on the Pod resource. That is why `kubectl get deploy productpage-v1 -o yaml` still shows one container even though the running pod has two.
+The API server applies the patch and the modified pod is what schedulers actually see. **The original `Deployment` is unchanged in the API server.** The change only happens at admission time on the Pod resource. That is why `kubectl get deploy productpage-v1 -o yaml` still shows one container even though the running pod is `2/2`.
+
+> **Native sidecars (Istio on Kubernetes 1.29+, which includes AKS 1.34 and current `kind`).** Since the [native sidecar containers](https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/) feature went stable, Istio injects `istio-proxy` not as an ordinary container but as an **`initContainer` with `restartPolicy: Always`**. Kubernetes therefore starts it *before* the app container and keeps it running for the pod's whole life. The practical consequences:
+> - The pod still reports **`2/2 Ready`** — a native sidecar counts toward readiness.
+> - In `kubectl describe pod`, `istio-proxy` shows under **`Init Containers:`**, alongside `istio-init`, *not* under `Containers:`. Older docs (and earlier versions of this README) show it under `Containers:` — that was the pre-native-sidecar layout.
+> - This fixed a long-standing ordering bug where the app could start, and even exit, before/without the proxy being ready. You can see the layout with `kubectl get pod <pod> -n bookinfo -o jsonpath='{.spec.initContainers[*].name}'` → `istio-init istio-proxy`.
 
 ### 3. What `istio-init` does
 
@@ -331,7 +339,9 @@ If you want to redo the hands-on at home without paying for AKS, a local Kuberne
 kind create cluster --name istio-bookinfo
 ```
 
-Then start from step 2 of the bootcamp file (install `istioctl`) and continue. The only step that differs is **getting the gateway IP**: on kind, the `istio-ingressgateway` Service of type `LoadBalancer` will hang on `<pending>` forever because kind has no cloud provider to allocate an IP. Two workarounds:
+Then start from step 2 of the bootcamp file (install `istioctl`) and continue. To
+stand the whole thing up (or tear it down) in one shot for a rehearsal, use the
+bundled scripts instead: `./scripts/kind-up.sh` and `./scripts/kind-down.sh`. The only step that differs is **getting the gateway IP**: on kind, the `istio-ingressgateway` Service of type `LoadBalancer` will hang on `<pending>` forever because kind has no cloud provider to allocate an IP. Two workarounds:
 
 ```bash
 # Workaround 1: use kubectl port-forward instead of the public IP

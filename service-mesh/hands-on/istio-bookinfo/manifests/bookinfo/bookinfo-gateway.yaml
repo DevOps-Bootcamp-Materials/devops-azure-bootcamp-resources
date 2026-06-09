@@ -41,3 +41,212 @@ spec:
         host: productpage
         port:
           number: 9080
+#
+# =============================================================================
+#  CLASSROOM EXAMPLES (commented out — kubectl ignores them on `apply -f`)
+#  Alternative Gateway and VirtualService configurations.
+#  Uncomment a block to demo it live.
+#  Routings over `reviews`/`ratings` require destination-rule-all.yaml.
+# =============================================================================
+#
+# -----------------------------------------------------------------------------
+#  GATEWAY — what I listen for at the mesh edge
+# -----------------------------------------------------------------------------
+#
+#  (a) Restrict by host (one gateway serving several apps)
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: Gateway
+# metadata:
+#   name: bookinfo-gateway-hosts
+# spec:
+#   selector:
+#     istio: ingressgateway
+#   servers:
+#   - port: { number: 8080, name: http, protocol: HTTP }
+#     hosts:
+#     - "bookinfo.example.com"
+#     - "shop.example.com"
+#
+#  (b) HTTPS with TLS termination (production case)
+#      tls.mode: SIMPLE (standard TLS) | MUTUAL (mTLS) | PASSTHROUGH (no decrypt)
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: Gateway
+# metadata:
+#   name: bookinfo-gateway-tls
+# spec:
+#   selector:
+#     istio: ingressgateway
+#   servers:
+#   - port: { number: 443, name: https, protocol: HTTPS }
+#     tls:
+#       mode: SIMPLE
+#       credentialName: bookinfo-cert   # Secret in the gateway namespace
+#     hosts:
+#     - "bookinfo.example.com"
+#
+#  (c) Redirect HTTP -> HTTPS (automatic 301)
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: Gateway
+# metadata:
+#   name: bookinfo-gateway-redirect
+# spec:
+#   selector:
+#     istio: ingressgateway
+#   servers:
+#   - port: { number: 80, name: http, protocol: HTTP }
+#     hosts: ["*"]
+#     tls:
+#       httpsRedirect: true
+#
+#  (d) Other protocols: HTTP | HTTPS | HTTP2 | GRPC | TCP | TLS | MONGO
+#      (e.g. expose Redis/Mongo over TCP through the mesh)
+#
+#
+# -----------------------------------------------------------------------------
+#  VIRTUALSERVICE — where I route each request
+# -----------------------------------------------------------------------------
+#
+#  (a) Canary / traffic splitting (90% v1, 10% v3)
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: VirtualService
+# metadata:
+#   name: reviews-canary
+# spec:
+#   hosts: ["reviews"]
+#   http:
+#   - route:
+#     - destination: { host: reviews, subset: v1 }
+#       weight: 90
+#     - destination: { host: reviews, subset: v3 }
+#       weight: 10
+#
+#  (b) A/B testing by header/cookie (user "jason" -> v2, everyone else -> v1)
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: VirtualService
+# metadata:
+#   name: reviews-abtest
+# spec:
+#   hosts: ["reviews"]
+#   http:
+#   - match:
+#     - headers:
+#         end-user:
+#           exact: jason
+#     route:
+#     - destination: { host: reviews, subset: v2 }
+#   - route:
+#     - destination: { host: reviews, subset: v1 }
+#
+#  (c) Path rewrite (rewrite = transparent; redirect = 301 back to client)
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: VirtualService
+# metadata:
+#   name: productpage-rewrite
+# spec:
+#   hosts: ["productpage"]
+#   http:
+#   - match:
+#     - uri: { prefix: /api/v1/products }
+#     rewrite:
+#       uri: /products
+#     route:
+#     - destination: { host: productpage, port: { number: 9080 } }
+#
+#  (d) Timeout (cuts off slow requests; pair with fault.delay)
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: VirtualService
+# metadata:
+#   name: reviews-timeout
+# spec:
+#   hosts: ["reviews"]
+#   http:
+#   - route:
+#     - destination: { host: reviews, subset: v1 }
+#     timeout: 0.5s
+#
+#  (e) Retries (resilience without touching the app code)
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: VirtualService
+# metadata:
+#   name: ratings-retries
+# spec:
+#   hosts: ["ratings"]
+#   http:
+#   - route:
+#     - destination: { host: ratings }
+#     retries:
+#       attempts: 3
+#       perTryTimeout: 2s
+#       retryOn: 5xx,connect-failure
+#
+#  (f) Fault injection (controlled chaos: delay + abort)
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: VirtualService
+# metadata:
+#   name: ratings-fault
+# spec:
+#   hosts: ["ratings"]
+#   http:
+#   - fault:
+#       delay:
+#         percentage: { value: 100 }
+#         fixedDelay: 7s
+#       abort:
+#         percentage: { value: 10 }
+#         httpStatus: 500
+#     route:
+#     - destination: { host: ratings, subset: v1 }
+#
+#  (g) Mirroring / shadow traffic (copy to v2 without affecting the user)
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: VirtualService
+# metadata:
+#   name: reviews-mirror
+# spec:
+#   hosts: ["reviews"]
+#   http:
+#   - route:
+#     - destination: { host: reviews, subset: v1 }   # real response to the user
+#     mirror: { host: reviews, subset: v2 }          # blind copy to v2
+#     mirrorPercentage: { value: 100 }
+#
+#  (h) CORS and header manipulation
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: VirtualService
+# metadata:
+#   name: productpage-cors
+# spec:
+#   hosts: ["productpage"]
+#   http:
+#   - route:
+#     - destination: { host: productpage }
+#     corsPolicy:
+#       allowOrigins:
+#       - exact: https://example.com
+#       allowMethods: [GET, POST]
+#     headers:
+#       request:
+#         set: { x-mesh: bookinfo }
+#       response:
+#         remove: [x-powered-by]
+#
+# -----------------------------------------------------------------------------
+#  Suggested walkthrough (all on Bookinfo, nothing new to deploy):
+#  1. No rules          -> reviews "dances" (round-robin): why you need a mesh
+#  2. VS to v1          -> pin the version (basic routing)
+#  3. A/B end-user jason-> header-based routing
+#  4. Canary 90/10->50/50-> traffic splitting
+#  5. Fault + timeout   -> resilience and cascading failures (see it in Kiali)
+#  6. Gateway with TLS  -> "production mode" wrap-up
+# =============================================================================

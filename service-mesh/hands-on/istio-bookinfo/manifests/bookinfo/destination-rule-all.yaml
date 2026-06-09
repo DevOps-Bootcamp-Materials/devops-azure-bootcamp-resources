@@ -59,4 +59,123 @@ spec:
   - name: v2
     labels:
       version: v2
+#
+# =============================================================================
+#  CLASSROOM EXAMPLES (commented out — kubectl ignores them on `apply -f`)
+#  DestinationRule trafficPolicy: how a client talks to a host once the
+#  VirtualService has decided WHERE to send the request.
+#  Rule of thumb: VirtualService = routing decision (which subset),
+#                 DestinationRule = connection behavior (how to call it).
+#  Uncomment a block to demo it live.
+# =============================================================================
+#
+#  (a) Load balancing algorithm
+#      simple: ROUND_ROBIN | LEAST_REQUEST | RANDOM | PASSTHROUGH
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: DestinationRule
+# metadata:
+#   name: reviews-lb
+# spec:
+#   host: reviews
+#   trafficPolicy:
+#     loadBalancer:
+#       simple: LEAST_REQUEST
+#   subsets:
+#   - name: v1
+#     labels: { version: v1 }
+#   - name: v2
+#     labels: { version: v2 }
+#   - name: v3
+#     labels: { version: v3 }
+#
+#  (b) Consistent hashing / session affinity (sticky sessions)
+#      Pin a user to the same pod by cookie, header or source IP.
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: DestinationRule
+# metadata:
+#   name: reviews-sticky
+# spec:
+#   host: reviews
+#   trafficPolicy:
+#     loadBalancer:
+#       consistentHash:
+#         httpCookie:
+#           name: session-id
+#           ttl: 60s
+#         # or: httpHeaderName: x-user-id
+#         # or: useSourceIp: true
+#
+#  (c) Connection pool limits (back-pressure / protect the backend)
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: DestinationRule
+# metadata:
+#   name: ratings-pool
+# spec:
+#   host: ratings
+#   trafficPolicy:
+#     connectionPool:
+#       tcp:
+#         maxConnections: 100        # max TCP conns to the host
+#         connectTimeout: 30ms
+#       http:
+#         http1MaxPendingRequests: 10  # queued requests before failing fast
+#         http2MaxRequests: 100
+#         maxRequestsPerConnection: 10
+#
+#  (d) Outlier detection = circuit breaking
+#      Eject unhealthy pods that return errors, then probe them back.
+#      Demo combo: fault.abort 5xx (VirtualService) -> pod gets ejected here.
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: DestinationRule
+# metadata:
+#   name: ratings-circuit-breaker
+# spec:
+#   host: ratings
+#   trafficPolicy:
+#     outlierDetection:
+#       consecutive5xxErrors: 5      # 5 errors in a row...
+#       interval: 10s                # ...checked every 10s...
+#       baseEjectionTime: 30s        # ...ejects the pod for 30s...
+#       maxEjectionPercent: 50       # ...but never more than half the pool
+#
+#  (e) mTLS mode for this host (overrides the mesh-wide PeerAuthentication)
+#      ISTIO_MUTUAL = Istio-managed certs | DISABLE = plaintext | SIMPLE = TLS
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: DestinationRule
+# metadata:
+#   name: productpage-mtls
+# spec:
+#   host: productpage
+#   trafficPolicy:
+#     tls:
+#       mode: ISTIO_MUTUAL
+#
+#  (f) Per-subset policy override (the global policy applies, v2 overrides it)
+# ---
+# apiVersion: networking.istio.io/v1
+# kind: DestinationRule
+# metadata:
+#   name: reviews-per-subset
+# spec:
+#   host: reviews
+#   trafficPolicy:                   # default for all subsets
+#     loadBalancer:
+#       simple: ROUND_ROBIN
+#   subsets:
+#   - name: v1
+#     labels: { version: v1 }
+#   - name: v2
+#     labels: { version: v2 }
+#     trafficPolicy:                 # v2-only override
+#       loadBalancer:
+#         simple: LEAST_REQUEST
+#   - name: v3
+#     labels: { version: v3 }
+#
+# =============================================================================
 ---

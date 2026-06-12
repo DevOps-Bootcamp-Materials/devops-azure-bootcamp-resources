@@ -3,7 +3,8 @@
 # a public endpoint on ngrok's edge for each rule's host.
 #
 # Replace YOUR-DOMAIN with the free static dev domain from your ngrok
-# dashboard (e.g. example-name-here.ngrok-free.app).
+# dashboard (e.g. example-name-here.ngrok-free.dev — note the .dev TLD;
+# list yours with: ngrok api reserved-domains list).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -12,7 +13,7 @@ metadata:
 spec:
   ingressClassName: ngrok
   rules:
-    - host: YOUR-DOMAIN.ngrok-free.app
+    - host: YOUR-DOMAIN.ngrok-free.dev
       http:
         paths:
           - path: /

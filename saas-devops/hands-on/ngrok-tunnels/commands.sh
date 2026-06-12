@@ -17,8 +17,9 @@ ngrok http 8089
 # Note the browser interstitial on free HTML traffic; curl bypasses it with:
 #   curl -H "ngrok-skip-browser-warning: 1" https://....ngrok-free.app
 
-# Your permanent free static domain (from the dashboard):
-ngrok http 8089 --url https://YOUR-DOMAIN.ngrok-free.app
+# Your permanent free static domain (auto-assigned; note the .dev TLD):
+ngrok api reserved-domains list
+ngrok http 8089 --url https://YOUR-DOMAIN.ngrok-free.dev
 
 # ========== PART B — Cloudflare quick tunnel (no account at all) =============
 cloudflared tunnel --url http://localhost:8089
@@ -46,7 +47,7 @@ kubectl apply -f manifests/ingress-ngrok.yaml
 kubectl get ingress -n tunnel-demo
 
 # From anywhere on the internet:
-curl -H "ngrok-skip-browser-warning: 1" https://YOUR-DOMAIN.ngrok-free.app
+curl -H "ngrok-skip-browser-warning: 1" https://YOUR-DOMAIN.ngrok-free.dev
 
 # Cleanup
 k3d cluster delete tunnel-demo

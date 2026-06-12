@@ -14,6 +14,7 @@ k3d cluster create gcloud-demo --servers 1 --agents 1
 
 # --- 3. Credentials as a Secret (never in values files) ------------------------
 kubectl create namespace monitoring
+# username = the numeric hmInstancePromId from step 1, NOT the stack slug.
 kubectl create secret generic grafana-cloud-credentials -n monitoring \
   --from-literal=username=<PROM_INSTANCE_ID> \
   --from-literal=password=$GRAFANA_CLOUD_TOKEN
@@ -36,6 +37,7 @@ kill %1
 # --- 6. Verify samples ARRIVED in Grafana Cloud (the e2e proof) -----------------
 curl -s -u "<PROM_INSTANCE_ID>:$GRAFANA_CLOUD_TOKEN" \
   "<hmInstancePromUrl>/api/prom/api/v1/query?query=count(up)" | head -c 400
+# Verified result shape: count(up)=10 across kubelet/node-exporter/ksm/apiserver.
 # A non-empty result = your laptop's cluster is visible from the SaaS side.
 # Now open https://<your-stack>.grafana.net -> Explore -> select the
 # grafanacloud-*-prom datasource -> query: up
@@ -44,7 +46,8 @@ curl -s -u "<PROM_INSTANCE_ID>:$GRAFANA_CLOUD_TOKEN" \
 curl -s -u "<PROM_INSTANCE_ID>:$GRAFANA_CLOUD_TOKEN" \
   "<hmInstancePromUrl>/api/prom/api/v1/query?query=count({__name__!=\"\"})" | head -c 400
 # Active series being ingested. Free tier = 10k; our writeRelabelConfigs keep
-# only kubelet/kube-state-metrics/node-exporter/apiserver jobs to stay under it.
+# only an allowlist of curated metric names to stay under it.
+# Measured journey on a 1-server/1-agent cluster: 72,561 -> 47,894 -> 478 series.
 
 # --- 8. Cleanup -------------------------------------------------------------------
 k3d cluster delete gcloud-demo

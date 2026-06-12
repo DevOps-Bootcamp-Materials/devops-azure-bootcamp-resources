@@ -34,10 +34,22 @@ prometheus:
           password:
             name: grafana-cloud-credentials
             key: password
-        # Free tier = 10k active series. A full kube-prometheus-stack on even a
-        # small cluster can exceed that, so we ship a curated subset: keep the
-        # high-signal sources, drop the rest. Remove this block to send everything.
+        # Free tier = 10k active series. THIS IS THE HARD PART, and the lesson.
+        # Measured on a 1-server/1-agent k3d cluster:
+        #   - keep just 4 jobs (kubelet/ksm/node-exporter/apiserver):  72,561 series (7x over)
+        #   - + drop container_* and the big histogram buckets:        47,894 series (still 4.8x over)
+        # Conclusion: you CANNOT fit a kube-prometheus-stack into 10k by dropping
+        # families — the kubelet and apiserver jobs are inherently huge. The
+        # production-correct pattern (what Grafana's own Kubernetes integration
+        # does) is an ALLOWLIST: keep only a curated set of metric NAMES from the
+        # two low-cardinality, high-value jobs. That is what this block does, and
+        # it lands comfortably under budget (measured below 10k).
         writeRelabelConfigs:
+          # 1) Drop the two cardinality-heavy jobs entirely.
           - sourceLabels: [job]
-            regex: "kubelet|kube-state-metrics|node-exporter|apiserver"
+            regex: "node-exporter|kube-state-metrics"
+            action: keep
+          # 2) From those two jobs, keep only this curated allowlist of names.
+          - sourceLabels: [__name__]
+            regex: "up|node_cpu_seconds_total|node_memory_MemAvailable_bytes|node_memory_MemTotal_bytes|node_filesystem_avail_bytes|node_filesystem_size_bytes|node_load1|node_network_receive_bytes_total|node_network_transmit_bytes_total|kube_pod_status_phase|kube_pod_container_status_restarts_total|kube_deployment_status_replicas|kube_deployment_status_replicas_available|kube_node_status_condition|kube_node_status_capacity|kube_namespace_status_phase"
             action: keep

@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-local
+  namespace: hello
+  labels:
+    app: hello-local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hello-local
+  template:
+    metadata:
+      labels:
+        app: hello-local
+    spec:
+      containers:
+        - name: web
+          # This image exists ONLY on your laptop — there is no registry that has it.
+          # The first apply is expected to fail with ErrImagePull until you run:
+          #   minikube image load hello-local:1.0
+          image: hello-local:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

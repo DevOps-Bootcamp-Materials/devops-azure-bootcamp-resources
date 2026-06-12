@@ -1,0 +1,20 @@
+# The SAME route as ingress.yaml, expressed in Traefik's native CRD —
+# under a different hostname so both can live side by side and you can
+# compare them. The CRD buys you what Ingress cannot express: the
+# middlewares chain (and weighted services, TCP routes, and more).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: whoami-route
+  namespace: traefik-demo
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`whoami-crd.k3d`)
+      kind: Rule
+      middlewares:
+        - name: taught-by
+      services:
+        - name: whoami-svc
+          port: 80

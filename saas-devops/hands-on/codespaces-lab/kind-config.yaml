@@ -1,0 +1,11 @@
+# Single-node kind cluster for the Codespaces lab.
+#
+# Deliberately NO extraPortMappings here: inside a codespace you do not
+# publish container ports to reach the app from outside. Instead you run
+# `kubectl port-forward --address 0.0.0.0 deploy/web 8080:80` and let
+# Codespaces detect the listening port and tunnel it for you.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: lab
+nodes:
+  - role: control-plane

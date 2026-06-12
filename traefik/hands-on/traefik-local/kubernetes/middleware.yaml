@@ -1,0 +1,12 @@
+# A Middleware is a named, reusable transformation — Traefik's own CRD.
+# This one adds a response header (same middleware as Part A's labels,
+# now expressed as a typed Kubernetes object).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: taught-by
+  namespace: traefik-demo
+spec:
+  headers:
+    customResponseHeaders:
+      X-Taught-By: "Traefik-on-Kubernetes"

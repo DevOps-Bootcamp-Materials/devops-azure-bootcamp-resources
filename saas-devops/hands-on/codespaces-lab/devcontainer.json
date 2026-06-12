@@ -1,0 +1,14 @@
+{
+    "name": "codespaces-k8s-lab",
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+    "hostRequirements": {
+        "cpus": 2
+    },
+    "features": {
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+        "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
+            "minikube": "none"
+        }
+    },
+    "postCreateCommand": "curl -fsSLo /tmp/kind https://kind.sigs.k8s.io/dl/v0.32.0/kind-linux-amd64 && sudo install -m 0755 /tmp/kind /usr/local/bin/kind && rm /tmp/kind"
+}

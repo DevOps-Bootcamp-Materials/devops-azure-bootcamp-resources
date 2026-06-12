@@ -1,0 +1,40 @@
+# Part A — Traefik as a dynamic reverse proxy for Docker.
+#
+# - traefik: the proxy. Static config via command flags: two entrypoints
+#   (web :80, dashboard :8080 insecure mode — local learning only) and the
+#   Docker provider, opt-in per container (exposedbydefault=false).
+# - whoami: a tiny HTTP echo server. Its labels ARE its routing config.
+# - echo:   same image, plus a response-header middleware defined and
+#   attached entirely with labels.
+services:
+  traefik:
+    image: traefik:v3.7
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      # Read-only access to the Docker API: this is HOW Traefik discovers containers.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  whoami:
+    image: traefik/whoami
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.whoami.rule=Host(`whoami.localhost`)
+      - traefik.http.routers.whoami.entrypoints=web
+
+  echo:
+    image: traefik/whoami
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.echo.rule=Host(`echo.localhost`)
+      - traefik.http.routers.echo.entrypoints=web
+      # Chain a middleware onto the router...
+      - traefik.http.routers.echo.middlewares=taught-by
+      # ...and define it, all in labels:
+      - traefik.http.middlewares.taught-by.headers.customresponseheaders.X-Taught-By=Traefik

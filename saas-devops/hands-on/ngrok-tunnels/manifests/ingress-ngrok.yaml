@@ -1,0 +1,24 @@
+# A STANDARD Ingress consumed by the ngrok Kubernetes Operator.
+# The operator watches Ingresses with ingressClassName: ngrok and provisions
+# a public endpoint on ngrok's edge for each rule's host.
+#
+# Replace YOUR-DOMAIN with the free static dev domain from your ngrok
+# dashboard (e.g. example-name-here.ngrok-free.app).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-public
+  namespace: tunnel-demo
+spec:
+  ingressClassName: ngrok
+  rules:
+    - host: YOUR-DOMAIN.ngrok-free.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web-svc
+                port:
+                  number: 80

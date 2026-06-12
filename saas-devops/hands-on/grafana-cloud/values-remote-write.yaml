@@ -1,0 +1,43 @@
+# kube-prometheus-stack values: a lean local install that ships its metrics
+# to Grafana Cloud via remote_write.
+#
+# Fill the three placeholders from your Grafana Cloud stack
+# (Connections -> Data sources -> Prometheus, or the stack details page):
+#   - REMOTE_WRITE_URL  e.g. https://prometheus-prod-XX-prod-eu-west-X.grafana.net/api/prom/push
+#   - USERNAME          the numeric Metrics instance ID
+#   - The password is provided via a Kubernetes Secret (see commands.sh):
+#       kubectl create secret generic grafana-cloud-credentials \
+#         --from-literal=password=<ACCESS_POLICY_TOKEN> -n monitoring
+#
+# Local UI components are disabled — Grafana Cloud IS the UI in this hands-on.
+grafana:
+  enabled: false
+alertmanager:
+  enabled: false
+
+prometheus:
+  prometheusSpec:
+    # Keep the local footprint small; the cloud keeps the data.
+    retention: 2h
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+    remoteWrite:
+      - url: REMOTE_WRITE_URL
+        basicAuth:
+          username:
+            name: grafana-cloud-credentials
+            key: username
+          password:
+            name: grafana-cloud-credentials
+            key: password
+        # Free tier = 10k active series. A full kube-prometheus-stack on even a
+        # small cluster can exceed that, so we ship a curated subset: keep the
+        # high-signal sources, drop the rest. Remove this block to send everything.
+        writeRelabelConfigs:
+          - sourceLabels: [job]
+            regex: "kubelet|kube-state-metrics|node-exporter|apiserver"
+            action: keep

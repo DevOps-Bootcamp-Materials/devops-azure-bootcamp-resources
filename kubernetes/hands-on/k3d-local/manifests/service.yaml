@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-k3d-svc
+  namespace: hello
+spec:
+  type: ClusterIP
+  selector:
+    app: hello-k3d
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP

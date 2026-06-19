@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-k3d
+  namespace: hello
+  labels:
+    app: hello-k3d
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hello-k3d
+  template:
+    metadata:
+      labels:
+        app: hello-k3d
+    spec:
+      containers:
+        - name: web
+          # Pulled from the k3d-managed local registry — a REAL pull, not an image load.
+          # Pushed from the host as: docker push registry.localhost:5000/hello-k3d:1.0
+          # (the canonical name is whatever `k3d node list` shows — see the README)
+          image: registry.localhost:5000/hello-k3d:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 2
+            periodSeconds: 5

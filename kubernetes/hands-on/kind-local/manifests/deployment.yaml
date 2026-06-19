@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-kind
+  namespace: hello
+  labels:
+    app: hello-kind
+spec:
+  # 4 replicas on a 2-worker cluster: watch the scheduler spread them.
+  replicas: 4
+  selector:
+    matchLabels:
+      app: hello-kind
+  template:
+    metadata:
+      labels:
+        app: hello-kind
+    spec:
+      containers:
+        - name: web
+          # Built on the host, shipped in with: kind load docker-image hello-kind:1.0 --name dev
+          image: hello-kind:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 2
+            periodSeconds: 5

@@ -1,0 +1,25 @@
+# k3d cluster: 1 server + 2 agents, a managed local registry, and the two host
+# ports we need, all declared in one file.
+#
+# - ports 8080:80@loadbalancer  -> host:8080 reaches Traefik (the bundled ingress)
+# - ports 8081:8081@loadbalancer -> host:8081 reaches our LoadBalancer demo Service
+# - registries.create            -> a real registry container the cluster trusts,
+#                                   reachable as registry.localhost:5000
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: dev
+servers: 1
+agents: 2
+ports:
+  - port: 8080:80
+    nodeFilters:
+      - loadbalancer
+  - port: 8081:8081
+    nodeFilters:
+      - loadbalancer
+registries:
+  create:
+    name: registry.localhost
+    host: "0.0.0.0"
+    hostPort: "5000"

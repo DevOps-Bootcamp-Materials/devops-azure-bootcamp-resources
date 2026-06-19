@@ -1,0 +1,55 @@
+# kube-prometheus-stack values: a lean local install that ships its metrics
+# to Grafana Cloud via remote_write.
+#
+# Fill the three placeholders from your Grafana Cloud stack
+# (Connections -> Data sources -> Prometheus, or the stack details page):
+#   - REMOTE_WRITE_URL  e.g. https://prometheus-prod-XX-prod-eu-west-X.grafana.net/api/prom/push
+#   - USERNAME          the numeric Metrics instance ID
+#   - The password is provided via a Kubernetes Secret (see commands.sh):
+#       kubectl create secret generic grafana-cloud-credentials \
+#         --from-literal=password=<ACCESS_POLICY_TOKEN> -n monitoring
+#
+# Local UI components are disabled — Grafana Cloud IS the UI in this hands-on.
+grafana:
+  enabled: false
+alertmanager:
+  enabled: false
+
+prometheus:
+  prometheusSpec:
+    # Keep the local footprint small; the cloud keeps the data.
+    retention: 2h
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+    remoteWrite:
+      - url: REMOTE_WRITE_URL
+        basicAuth:
+          username:
+            name: grafana-cloud-credentials
+            key: username
+          password:
+            name: grafana-cloud-credentials
+            key: password
+        # Free tier = 10k active series. THIS IS THE HARD PART, and the lesson.
+        # Measured on a 1-server/1-agent k3d cluster:
+        #   - keep just 4 jobs (kubelet/ksm/node-exporter/apiserver):  72,561 series (7x over)
+        #   - + drop container_* and the big histogram buckets:        47,894 series (still 4.8x over)
+        # Conclusion: you CANNOT fit a kube-prometheus-stack into 10k by dropping
+        # families — the kubelet and apiserver jobs are inherently huge. The
+        # production-correct pattern (what Grafana's own Kubernetes integration
+        # does) is an ALLOWLIST: keep only a curated set of metric NAMES from the
+        # two low-cardinality, high-value jobs. That is what this block does, and
+        # it lands comfortably under budget (measured below 10k).
+        writeRelabelConfigs:
+          # 1) Drop the two cardinality-heavy jobs entirely.
+          - sourceLabels: [job]
+            regex: "node-exporter|kube-state-metrics"
+            action: keep
+          # 2) From those two jobs, keep only this curated allowlist of names.
+          - sourceLabels: [__name__]
+            regex: "up|node_cpu_seconds_total|node_memory_MemAvailable_bytes|node_memory_MemTotal_bytes|node_filesystem_avail_bytes|node_filesystem_size_bytes|node_load1|node_network_receive_bytes_total|node_network_transmit_bytes_total|kube_pod_status_phase|kube_pod_container_status_restarts_total|kube_deployment_status_replicas|kube_deployment_status_replicas_available|kube_node_status_condition|kube_node_status_capacity|kube_namespace_status_phase"
+            action: keep

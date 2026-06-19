@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-kind-svc
+  namespace: hello
+spec:
+  type: ClusterIP
+  selector:
+    app: hello-kind
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP

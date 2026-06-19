@@ -225,3 +225,71 @@ kubectl get nodes
 All three are hands-on exams (real terminal, 2 hours), not multiple choice. KodeKloud is the most community-recommended prep resource for all three.
 
 ---
+
+## Local Kubernetes — going deeper
+
+References for running real Kubernetes on your own machine and feeding it images — the official documentation behind the minikube, kind and k3d tooling, plus the ingress transition every cluster operator needs to understand. The minikube/kind/k3d decision matrix (when to pick which) lives in the **Local Kubernetes landscape lesson** in the course repository; the entries here are the primary sources to go deeper on whichever tool you picked.
+
+### [k3d Documentation](https://k3d.io/)
+
+**Why use it:** The official docs for k3d — K3s clusters inside Docker. Covers the pieces that make k3d the fastest "complete" local cluster: the built-in registry (`k3d registry create`), the klipper service load balancer, Traefik as default ingress, and multi-cluster/multi-node configuration via `k3d.yaml` config files.
+
+**When to use it:** Whenever a k3d flag or default surprises you — especially the port-mapping (`--port`) and registry sections, which are where most first-time friction lives. The "Usage" guides are short and example-driven; read them before resorting to GitHub issues.
+
+---
+
+### [kind Documentation](https://kind.sigs.k8s.io/)
+
+**Why use it:** The official site for kind (Kubernetes IN Docker), the tool the Kubernetes project itself uses to test Kubernetes. The "User Guide" documents the cluster config format (multi-node topologies, `extraPortMappings`, feature gates) and `kind load docker-image` — the canonical answer to "how do I get my local image into the cluster".
+
+**When to use it:** When you need a disposable multi-node cluster for testing scheduling, affinity or taints, or when wiring kind into CI. The "Known Issues" page is genuinely useful — check it before debugging anything Docker-network-related.
+
+---
+
+### [K3s Documentation](https://docs.k3s.io/)
+
+**Why use it:** K3s is the CNCF-certified lightweight Kubernetes distribution that k3d wraps — a single binary that runs a conformant cluster on anything from a Raspberry Pi to a free ARM cloud VM. The docs explain what K3s changes versus upstream (SQLite instead of etcd by default, bundled Traefik and klipper-lb, the agent/server split) and how to install it on bare Linux in one command.
+
+**When to use it:** When you graduate from "K3s inside Docker via k3d" to "K3s directly on a Linux box" — a home server, an edge device, or an always-free cloud instance. Also the reference for understanding what k3d's defaults (Traefik, klipper) actually are underneath.
+
+---
+
+### [minikube Handbook](https://minikube.sigs.k8s.io/docs/handbook/)
+
+**Why use it:** The handbook is the part of the minikube docs that goes beyond `minikube start`: drivers, profiles (multiple clusters side by side), the addon system, `minikube tunnel` for LoadBalancer services, image loading and registry options, mounting host folders and resource tuning. Most "minikube can't do X" complaints are answered by a handbook page.
+
+**When to use it:** As the reference companion while minikube is your daily-driver cluster. The "Pushing images" page is worth reading even if you use kind or k3d — it catalogs every approach to the image-into-cluster problem in one place.
+
+---
+
+### [cloud-provider-kind](https://github.com/kubernetes-sigs/cloud-provider-kind)
+
+**Why use it:** An official kubernetes-sigs project that fills kind's biggest gap: `Service` of type `LoadBalancer`. Run one binary on your host and every LoadBalancer Service in your kind clusters gets a real working external IP (it also implements Gateway API support) — no MetalLB configuration, no `<pending>` forever. It is the closest a local cluster gets to cloud load-balancer ergonomics.
+
+**When to use it:** When re-running cloud-targeted labs (which assume LoadBalancer "just works") on kind, or when you want to practice the LoadBalancer/Gateway flow locally without the MetalLB setup detour.
+
+---
+
+### [Ingress NGINX Retirement Announcement (Kubernetes Blog, Nov 2025)](https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/) and [Follow-up Statement (Jan 2026)](https://kubernetes.io/blog/2026/01/29/ingress-nginx-statement/)
+
+**Why use it:** Required reading on why ingress is changing. ingress-nginx — for years the default ingress controller in roughly half of all clusters — was retired by the Kubernetes project, with maintenance ending in March 2026: no more releases, bug fixes or security patches. The first post explains the why (unsustainable maintainership, accumulated security debt) and the migration options; the second, from the Steering and Security Response Committees, escalates the urgency and is unambiguous that staying put means accumulating unpatched vulnerabilities. Together they are also a case study in how open-source infrastructure actually fails: not with an outage, but with maintainers running out.
+
+**When to use it:** Before choosing an ingress controller for anything new (the answer is no longer "nginx by default" — Gateway API implementations and alternative controllers are the recommended paths), and before any interview that touches cluster operations: "what would you do about ingress-nginx?" is now a real question with a real answer.
+
+---
+
+### [Traefik Documentation](https://doc.traefik.io/traefik/)
+
+**Why use it:** Traefik is the most natural successor path after ingress-nginx for local and small-cluster work: it is the default ingress controller shipped by K3s/k3d, it supports the standard `Ingress` resource, its own CRDs, *and* the Gateway API, and its docs are organized around concepts (entrypoints, routers, services, middlewares) that transfer across all three. Dynamic configuration discovery — watching Kubernetes resources and reconfiguring live — is the core idea to take away.
+
+**When to use it:** When the ingress-nginx retirement posts leave you asking "so what do I run instead?", and as the reference whenever you touch the Traefik that k3d already installed for you. Start with the Kubernetes provider pages and the routing concepts.
+
+---
+
+### [Working with the GitHub Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
+
+**Why use it:** The official reference for GHCR (`ghcr.io`) — the free OCI registry that gives any local cluster a realistic image workflow: authenticate with a personal access token, push with the full `ghcr.io/<user>/<image>:<tag>` name, control visibility, and link images to repositories with the `org.opencontainers.image.source` label. Public images pull anonymously, which is what makes GHCR the zero-friction registry for labs and personal platforms.
+
+**When to use it:** Every time the image-pull workflow is the thing you are practicing — and any time a Pod sits in `ImagePullBackOff` against GHCR, since the authentication and visibility rules causing it are documented here, not in the error message.
+
+---

@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-ghcr-public
+  namespace: hello
+  labels:
+    app: hello-ghcr-public
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hello-ghcr-public
+  template:
+    metadata:
+      labels:
+        app: hello-ghcr-public
+    spec:
+      containers:
+        - name: web
+          # PUBLIC package: any cluster on the internet can pull this anonymously.
+          # Replace YOUR_USER with your GitHub username (lowercase).
+          image: ghcr.io/YOUR_USER/hello-ghcr:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

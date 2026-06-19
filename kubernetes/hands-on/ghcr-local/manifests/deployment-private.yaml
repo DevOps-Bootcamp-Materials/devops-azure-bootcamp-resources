@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-ghcr-private
+  namespace: hello
+  labels:
+    app: hello-ghcr-private
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hello-ghcr-private
+  template:
+    metadata:
+      labels:
+        app: hello-ghcr-private
+    spec:
+      # The Secret must exist in THIS namespace:
+      #   kubectl create secret docker-registry ghcr-cred -n hello \
+      #     --docker-server=ghcr.io \
+      #     --docker-username=YOUR_USER \
+      #     --docker-password=$CR_PAT
+      imagePullSecrets:
+        - name: ghcr-cred
+      containers:
+        - name: web
+          # PRIVATE package: without the imagePullSecret above this Pod
+          # sits in ImagePullBackOff with "denied".
+          image: ghcr.io/YOUR_USER/hello-ghcr-private:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

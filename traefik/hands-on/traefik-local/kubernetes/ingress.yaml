@@ -1,0 +1,20 @@
+# The STANDARD Ingress route — what you already know from the local-clusters
+# hands-on. Traefik consumes it as a normal ingress controller.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: whoami-ingress
+  namespace: traefik-demo
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: whoami.k3d
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: whoami-svc
+                port:
+                  number: 80
